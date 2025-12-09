@@ -1043,86 +1043,139 @@ function activateSOS() {
     const progressRing = document.querySelector('.progress-ring');
     progressRing.classList.remove('hidden');
 
-    document.getElementById('sos-instruction').textContent = 'Enviando alerta...';
+    document.getElementById('sos-instruction').textContent = 'Obteniendo ubicación...';
     document.getElementById('sos-instruction').className = 'text-sm text-red-600 mt-4 font-bold';
 
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            console.log('📍 Ubicación obtenida:', position.coords.latitude, position.coords.longitude);
+    // Intentar obtener ubicación GPS con timeout corto
+    const obtenerUbicacionConFallback = () => {
+        // Primer intento: Alta precisión con timeout corto (5 segundos)
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                console.log('📍 Ubicación GPS obtenida con alta precisión');
+                enviarAlertaConUbicacion(position.coords.latitude, position.coords.longitude, 'gps_alta_precision');
+            },
+            function(error) {
+                console.warn('⚠️ Error con GPS de alta precisión:', error.message);
+                console.log('🔄 Intentando con baja precisión...');
 
-            const alertData = {
-                latitud: position.coords.latitude,
-                longitud: position.coords.longitude,
-                bateria: {% if perfil.nivel_bateria %}{{ perfil.nivel_bateria }}{% else %}100{% endif %},
-                datos_sensores: {}
-            };
+                // Segundo intento: Baja precisión, más rápido
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        console.log('📍 Ubicación GPS obtenida con baja precisión');
+                        enviarAlertaConUbicacion(position.coords.latitude, position.coords.longitude, 'gps_baja_precision');
+                    },
+                    function(error2) {
+                        console.error('❌ Error con GPS de baja precisión:', error2.message);
+                        console.log('🔄 Usando ubicación de respaldo...');
 
-            console.log('📤 Enviando alerta:', alertData);
-
-            fetch('{% url "crear_alerta_panico" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': window.RappiSafe.csrfToken
-                },
-                body: JSON.stringify(alertData)
-            })
-            .then(response => {
-                console.log('📥 Respuesta recibida:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('📊 Datos de respuesta:', data);
-
-                if (data.success) {
-                    console.log('✅ ¡ALERTA SOS ACTIVADA EXITOSAMENTE!');
-                    console.log(`📱 Contactos notificados: ${data.contactos_notificados || 0}`);
-
-                    document.getElementById('sos-instruction').textContent = '¡Alerta activada!';
-                    document.getElementById('sos-instruction').className = 'text-sm text-green-600 mt-4 font-bold';
-
-                    // Mostrar mensaje de éxito con información de notificaciones
-                    let mensaje = '¡Alerta SOS activada! Los operadores han sido notificados.';
-                    if (data.contactos_notificados && data.contactos_notificados > 0) {
-                        mensaje += `\n\n📱 ${data.contactos_notificados} contacto(s) de emergencia notificado(s) por SMS.`;
-                    } else {
-                        mensaje += '\n\n⚠️ No hay contactos de emergencia registrados. Configúralos en tu perfil.';
+                        // Tercer intento: Usar última ubicación conocida del perfil
+                        {% if perfil.ultima_latitud and perfil.ultima_longitud %}
+                        console.log('📍 Usando última ubicación guardada del perfil');
+                        enviarAlertaConUbicacion(
+                            {{ perfil.ultima_latitud }},
+                            {{ perfil.ultima_longitud }},
+                            'perfil_ultima_ubicacion'
+                        );
+                        {% else %}
+                        // Cuarto intento: Enviar sin ubicación (mejor que no enviar nada)
+                        console.warn('⚠️ No hay ubicación disponible, enviando alerta sin GPS');
+                        enviarAlertaConUbicacion(null, null, 'sin_ubicacion');
+                        {% endif %}
+                    },
+                    {
+                        enableHighAccuracy: false,  // Baja precisión, más rápido
+                        timeout: 3000,              // 3 segundos
+                        maximumAge: 30000           // Acepta ubicación de hasta 30s
                     }
-                    alert(mensaje);
+                );
+            },
+            {
+                enableHighAccuracy: true,           // Alta precisión
+                timeout: 5000,                      // 5 segundos
+                maximumAge: 0                       // No aceptar ubicación en caché
+            }
+        );
+    };
 
-                    // Recargar después de 2 segundos
-                    setTimeout(() => {
-                        console.log('🔄 Recargando página...');
-                        location.reload();
-                    }, 2000);
-                } else {
-                    throw new Error(data.error || 'Error desconocido al activar SOS');
+    // Función auxiliar para enviar la alerta
+    function enviarAlertaConUbicacion(latitud, longitud, metodo) {
+        console.log(`📤 Enviando alerta (método: ${metodo})`);
+
+        document.getElementById('sos-instruction').textContent = 'Enviando alerta...';
+
+        const alertData = {
+            latitud: latitud || 0,
+            longitud: longitud || 0,
+            bateria: {% if perfil.nivel_bateria %}{{ perfil.nivel_bateria }}{% else %}100{% endif %},
+            datos_sensores: {
+                metodo_ubicacion: metodo,
+                tiene_gps: latitud !== null && longitud !== null
+            }
+        };
+
+        console.log('📤 Datos de alerta:', alertData);
+
+        fetch('{% url "crear_alerta_panico" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.RappiSafe.csrfToken
+            },
+            body: JSON.stringify(alertData)
+        })
+        .then(response => {
+            console.log('📥 Respuesta recibida:', response.status);
+            if (!response.ok) {
+                throw new Error(`Error HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Datos de respuesta:', data);
+
+            if (data.success) {
+                console.log('✅ ¡ALERTA SOS ACTIVADA EXITOSAMENTE!');
+                console.log(`📱 Contactos notificados: ${data.contactos_notificados || 0}`);
+
+                document.getElementById('sos-instruction').textContent = '¡Alerta activada!';
+                document.getElementById('sos-instruction').className = 'text-sm text-green-600 mt-4 font-bold';
+
+                // Mostrar mensaje de éxito con información de notificaciones
+                let mensaje = '¡Alerta SOS activada! Los operadores han sido notificados.';
+
+                // Información de GPS
+                if (!latitud || !longitud) {
+                    mensaje += '\n\n⚠️ No se pudo obtener ubicación GPS.';
+                } else if (metodo === 'gps_baja_precision') {
+                    mensaje += '\n\n⚠️ Ubicación aproximada (señal GPS débil).';
+                } else if (metodo === 'perfil_ultima_ubicacion') {
+                    mensaje += '\n\n⚠️ Se usó tu última ubicación conocida.';
                 }
-            })
-            .catch(error => {
-                console.error('❌ Error al activar SOS:', error);
-                document.getElementById('sos-instruction').textContent = 'Error: ' + error.message;
-                document.getElementById('sos-instruction').className = 'text-sm text-red-600 mt-4';
 
-                alert('Error al enviar alerta SOS: ' + error.message);
+                // Información de contactos
+                if (data.contactos_notificados && data.contactos_notificados > 0) {
+                    mensaje += `\n\n📱 ${data.contactos_notificados} contacto(s) de emergencia notificado(s) por SMS.`;
+                } else {
+                    mensaje += '\n\n⚠️ No hay contactos de emergencia registrados. Configúralos en tu perfil.';
+                }
 
-                // Resetear estado
-                sosActivating = false;
-                const progressRing = document.querySelector('.progress-ring');
-                progressRing.classList.add('hidden');
+                alert(mensaje);
 
+                // Recargar después de 2 segundos
                 setTimeout(() => {
-                    document.getElementById('sos-instruction').textContent = 'Mantén presionado 3s para activar';
-                    document.getElementById('sos-instruction').className = 'text-sm text-gray-500 mt-4';
-                }, 3000);
-            });
-        },
-        function(error) {
-            console.error('❌ Error de GPS al activar SOS:', error);
-            document.getElementById('sos-instruction').textContent = 'Error de GPS';
+                    console.log('🔄 Recargando página...');
+                    location.reload();
+                }, 2000);
+            } else {
+                throw new Error(data.error || 'Error desconocido al activar SOS');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error al activar SOS:', error);
+            document.getElementById('sos-instruction').textContent = 'Error al enviar';
             document.getElementById('sos-instruction').className = 'text-sm text-red-600 mt-4';
 
-            alert('Error al obtener ubicación GPS');
+            alert('Error al enviar alerta SOS: ' + error.message + '\n\nIntenta nuevamente o contacta con soporte.');
 
             // Resetear estado
             sosActivating = false;
@@ -1133,13 +1186,11 @@ function activateSOS() {
                 document.getElementById('sos-instruction').textContent = 'Mantén presionado 3s para activar';
                 document.getElementById('sos-instruction').className = 'text-sm text-gray-500 mt-4';
             }, 3000);
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        }
-    );
+        });
+    }
+
+    // Iniciar el proceso de obtención de ubicación
+    obtenerUbicacionConFallback();
 }
 
 // ============================================================================
@@ -1290,34 +1341,82 @@ function confirmCancelAlert() {
         // Mostrar notificación visual
         showShakeNotification();
 
-        // Obtener ubicación y enviar alerta
-        if (navigator.geolocation) {
+        // Usar el mismo sistema de fallback GPS que el botón SOS
+        const obtenerUbicacionParaAgitacion = () => {
+            // Primer intento: Alta precisión con timeout corto (5 segundos)
             navigator.geolocation.getCurrentPosition(
-                position => {
-                    // Obtener nivel de batería
+                function(position) {
+                    console.log('📍 GPS obtenido (alta precisión) para alerta por agitación');
                     getBatteryLevel().then(batteryLevel => {
                         enviarAlertaPanicoPorAgitacion(
                             position.coords.latitude,
                             position.coords.longitude,
                             batteryLevel,
-                            { trigger: 'agitacion', sensibilidad: {{ perfil.sensibilidad_agitacion }} }
+                            { trigger: 'agitacion', sensibilidad: {{ perfil.sensibilidad_agitacion }}, metodo_ubicacion: 'gps_alta_precision' }
                         );
                     });
                 },
-                error => {
-                    console.error('❌ Error al obtener ubicación:', error);
-                    // Enviar alerta sin ubicación
-                    getBatteryLevel().then(batteryLevel => {
-                        enviarAlertaPanicoPorAgitacion(null, null, batteryLevel, { trigger: 'agitacion' });
-                    });
+                function(error) {
+                    console.warn('⚠️ Error con GPS de alta precisión:', error.message);
+                    console.log('🔄 Intentando con baja precisión...');
+
+                    // Segundo intento: Baja precisión, más rápido
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            console.log('📍 GPS obtenido (baja precisión) para alerta por agitación');
+                            getBatteryLevel().then(batteryLevel => {
+                                enviarAlertaPanicoPorAgitacion(
+                                    position.coords.latitude,
+                                    position.coords.longitude,
+                                    batteryLevel,
+                                    { trigger: 'agitacion', sensibilidad: {{ perfil.sensibilidad_agitacion }}, metodo_ubicacion: 'gps_baja_precision' }
+                                );
+                            });
+                        },
+                        function(error2) {
+                            console.error('❌ Error con GPS de baja precisión:', error2.message);
+                            console.log('🔄 Usando ubicación de respaldo...');
+
+                            // Tercer intento: Usar última ubicación conocida del perfil
+                            {% if perfil.ultima_latitud and perfil.ultima_longitud %}
+                            console.log('📍 Usando última ubicación guardada del perfil');
+                            getBatteryLevel().then(batteryLevel => {
+                                enviarAlertaPanicoPorAgitacion(
+                                    {{ perfil.ultima_latitud }},
+                                    {{ perfil.ultima_longitud }},
+                                    batteryLevel,
+                                    { trigger: 'agitacion', sensibilidad: {{ perfil.sensibilidad_agitacion }}, metodo_ubicacion: 'perfil_ultima_ubicacion' }
+                                );
+                            });
+                            {% else %}
+                            // Cuarto intento: Enviar sin ubicación (mejor que no enviar nada)
+                            console.warn('⚠️ No hay ubicación disponible, enviando alerta sin GPS');
+                            getBatteryLevel().then(batteryLevel => {
+                                enviarAlertaPanicoPorAgitacion(
+                                    null,
+                                    null,
+                                    batteryLevel,
+                                    { trigger: 'agitacion', sensibilidad: {{ perfil.sensibilidad_agitacion }}, metodo_ubicacion: 'sin_ubicacion' }
+                                );
+                            });
+                            {% endif %}
+                        },
+                        {
+                            enableHighAccuracy: false,  // Baja precisión, más rápido
+                            timeout: 3000,              // 3 segundos
+                            maximumAge: 30000           // Acepta ubicación de hasta 30s
+                        }
+                    );
+                },
+                {
+                    enableHighAccuracy: true,           // Alta precisión
+                    timeout: 5000,                      // 5 segundos
+                    maximumAge: 0                       // No aceptar ubicación en caché
                 }
             );
-        } else {
-            // Sin geolocalización, enviar alerta sin ubicación
-            getBatteryLevel().then(batteryLevel => {
-                enviarAlertaPanicoPorAgitacion(null, null, batteryLevel, { trigger: 'agitacion' });
-            });
-        }
+        };
+
+        obtenerUbicacionParaAgitacion();
     }
 
     function enviarAlertaPanicoPorAgitacion(latitud, longitud, bateria, datos_sensores) {

@@ -21,5 +21,8 @@ weasyprint==60.2
 # Para validación de números telefónicos
 phonenumbers==8.13.27
 
+# Para notificaciones (SMS alternativo)
+python-telegram-bot>=20.0
+
 # Para desarrollo
 django-debug-toolbar==4.2.0

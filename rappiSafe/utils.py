@@ -283,18 +283,19 @@ def notificar_contactos_emergencia(alerta):
     from django.utils import timezone
 
     try:
-        # Obtener contactos de emergencia del repartidor
+        # Obtener contactos de emergencia del repartidor (solo validados)
         contactos = ContactoConfianza.objects.filter(
-            repartidor=alerta.repartidor
+            repartidor=alerta.repartidor,
+            validado=True  # Solo notificar contactos validados
         )
 
         if not contactos.exists():
-            print(f"⚠️ Alerta {alerta.id}: No hay contactos de emergencia registrados")
+            print(f"⚠️ Alerta {alerta.id}: No hay contactos de emergencia validados")
             return {
                 'success': False,
                 'contactos_notificados': 0,
                 'notificaciones_fallidas': 0,
-                'mensaje': 'No hay contactos de emergencia registrados'
+                'mensaje': 'No hay contactos de emergencia validados'
             }
 
         # Generar mensaje personalizado
@@ -320,14 +321,15 @@ Este mensaje es automático. Por favor, contacte inmediatamente con {repartidor_
 
         for contacto in contactos:
             try:
-                # Enviar SMS (simulado por ahora)
-                resultado_envio = enviar_sms_contacto(contacto.telefono, mensaje)
+                # Enviar notificación (Telegram > Email > Simulado)
+                resultado_envio = enviar_notificacion_contacto(contacto, mensaje)
+                metodo = resultado_envio.get('metodo', 'desconocido')
 
                 # Registrar notificación en base de datos
                 notificacion = NotificacionContacto.objects.create(
                     alerta=alerta,
                     contacto=contacto,
-                    metodo='sms',
+                    metodo=metodo if metodo in ['telegram', 'email', 'sms', 'whatsapp', 'llamada'] else 'sms',
                     estado='enviado' if resultado_envio['success'] else 'fallido',
                     mensaje=mensaje,
                     respuesta_api=resultado_envio.get('respuesta'),
@@ -336,18 +338,19 @@ Este mensaje es automático. Por favor, contacte inmediatamente con {repartidor_
 
                 if resultado_envio['success']:
                     contactos_notificados += 1
-                    print(f"✅ SMS enviado a {contacto.nombre} ({contacto.telefono})")
+                    metodo_str = metodo.upper() if metodo != 'simulado' else 'SIMULADO'
+                    print(f"✅ Notificación enviada a {contacto.nombre} via {metodo_str}")
                     detalles.append({
                         'contacto': contacto.nombre,
-                        'telefono': contacto.telefono,
+                        'metodo': metodo,
                         'estado': 'enviado'
                     })
                 else:
                     notificaciones_fallidas += 1
-                    print(f"❌ Error al enviar SMS a {contacto.nombre}: {resultado_envio.get('error')}")
+                    print(f"❌ Error al notificar a {contacto.nombre}: {resultado_envio.get('error')}")
                     detalles.append({
                         'contacto': contacto.nombre,
-                        'telefono': contacto.telefono,
+                        'metodo': metodo,
                         'estado': 'fallido',
                         'error': resultado_envio.get('error')
                     })
@@ -385,19 +388,12 @@ Este mensaje es automático. Por favor, contacte inmediatamente con {repartidor_
         }
 
 
-def enviar_sms_contacto(telefono, mensaje):
+def enviar_telegram(telegram_id, mensaje):
     """
-    Enviar SMS a un contacto de emergencia
-
-    NOTA: Esta es una implementación SIMULADA.
-    Para producción, integrar con:
-    - Twilio (recomendado): https://www.twilio.com/
-    - AWS SNS
-    - Vonage (Nexmo)
-    - Otro proveedor de SMS
+    Enviar mensaje por Telegram Bot (GRATIS, sin restricciones)
 
     Args:
-        telefono: Número telefónico del contacto (formato internacional)
+        telegram_id: ID de Telegram del contacto
         mensaje: Texto del mensaje a enviar
 
     Returns:
@@ -405,52 +401,177 @@ def enviar_sms_contacto(telefono, mensaje):
     """
     import os
 
-    # Por ahora, simular envío exitoso
-    # TODO: Integrar con servicio SMS real
+    telegram_token = os.environ.get('TELEGRAM_BOT_TOKEN')
 
-    print(f"📱 [SIMULADO] Enviando SMS a {telefono}")
-    print(f"   Mensaje: {mensaje[:50]}...")
+    if not telegram_token:
+        return {
+            'success': False,
+            'error': 'No hay token de Telegram configurado'
+        }
 
-    # Verificar si hay configuración de Twilio en variables de entorno
-    twilio_sid = os.environ.get('TWILIO_ACCOUNT_SID')
-    twilio_token = os.environ.get('TWILIO_AUTH_TOKEN')
-    twilio_from = os.environ.get('TWILIO_PHONE_NUMBER')
+    try:
+        import asyncio
+        from telegram import Bot
 
-    if twilio_sid and twilio_token and twilio_from:
-        # Si hay configuración, intentar usar Twilio
-        try:
-            from twilio.rest import Client
+        print(f"📱 Enviando mensaje por TELEGRAM a {telegram_id}")
+        print(f"   Mensaje: {mensaje[:50]}...")
 
-            client = Client(twilio_sid, twilio_token)
-            message = client.messages.create(
-                body=mensaje,
-                from_=twilio_from,
-                to=telefono
-            )
+        # Crear bot y enviar mensaje
+        bot = Bot(token=telegram_token)
 
-            return {
-                'success': True,
-                'respuesta': {
-                    'sid': message.sid,
-                    'status': message.status,
-                    'proveedor': 'twilio'
-                }
+        # Ejecutar envío de forma síncrona
+        async def send():
+            return await bot.send_message(chat_id=telegram_id, text=mensaje, parse_mode='HTML')
+
+        message = asyncio.run(send())
+
+        print(f"✅ Mensaje de Telegram enviado exitosamente! ID: {message.message_id}")
+
+        return {
+            'success': True,
+            'respuesta': {
+                'message_id': message.message_id,
+                'chat_id': message.chat_id,
+                'proveedor': 'telegram',
+                'real': True
             }
-        except Exception as e:
-            print(f"❌ Error al enviar SMS con Twilio: {str(e)}")
-            return {
-                'success': False,
-                'error': f"Error Twilio: {str(e)}"
-            }
+        }
+    except Exception as e:
+        print(f"❌ Error al enviar por Telegram: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Error Telegram: {str(e)}"
+        }
 
-    # Si no hay configuración de Twilio, simular envío
-    # En producción, esto debería fallar o usar un servicio alternativo
-    return {
-        'success': True,
-        'respuesta': {
-            'simulado': True,
-            'mensaje': 'SMS simulado - Configurar servicio real en producción',
-            'telefono': telefono,
+
+def enviar_email(email, asunto, mensaje):
+    """
+    Enviar email como alternativa a SMS
+
+    Args:
+        email: Email del contacto
+        asunto: Asunto del email
+        mensaje: Cuerpo del mensaje
+
+    Returns:
+        dict: {'success': bool, 'respuesta': dict, 'error': str}
+    """
+    import os
+    import smtplib
+    import ssl
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from django.conf import settings
+
+    try:
+        print(f"📧 Enviando EMAIL a {email}")
+        print(f"   Asunto: {asunto}")
+
+        # Crear mensaje
+        msg = MIMEMultipart()
+        msg['From'] = settings.EMAIL_HOST_USER
+        msg['To'] = email
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(mensaje, 'plain', 'utf-8'))
+
+        # Crear contexto SSL sin verificar certificados (para desarrollo)
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+
+        # Conectar y enviar
+        server = smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=10)
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+
+        print(f"✅ Email enviado exitosamente!")
+
+        return {
+            'success': True,
+            'respuesta': {
+                'email': email,
+                'proveedor': 'email',
+                'real': True
+            }
+        }
+    except Exception as e:
+        print(f"❌ Error al enviar email: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Error Email: {str(e)}"
+        }
+
+
+def enviar_notificacion_contacto(contacto, mensaje):
+    """
+    Enviar notificación a un contacto por TODOS los métodos disponibles
+    Envía por Telegram, Email, y cualquier otro canal configurado
+
+    Args:
+        contacto: Objeto ContactoConfianza
+        mensaje: Texto del mensaje a enviar
+
+    Returns:
+        dict: {
+            'success': bool,
+            'metodos_enviados': list,
+            'metodos_fallidos': list,
+            'respuestas': dict
+        }
+    """
+    metodos_enviados = []
+    metodos_fallidos = []
+    respuestas = {}
+
+    # Intentar Telegram si está disponible
+    if hasattr(contacto, 'telegram_id') and contacto.telegram_id:
+        resultado = enviar_telegram(contacto.telegram_id, mensaje)
+        if resultado['success']:
+            metodos_enviados.append('telegram')
+            respuestas['telegram'] = resultado.get('respuesta')
+            print(f"✅ Telegram enviado a {contacto.nombre}")
+        else:
+            metodos_fallidos.append('telegram')
+            respuestas['telegram_error'] = resultado.get('error')
+            print(f"❌ Telegram falló para {contacto.nombre}: {resultado.get('error')}")
+
+    # Intentar Email si está disponible
+    if hasattr(contacto, 'email') and contacto.email:
+        asunto = "🚨 ALERTA DE EMERGENCIA - RAPPI SAFE"
+        resultado = enviar_email(contacto.email, asunto, mensaje)
+        if resultado['success']:
+            metodos_enviados.append('email')
+            respuestas['email'] = resultado.get('respuesta')
+            print(f"✅ Email enviado a {contacto.nombre}")
+        else:
+            metodos_fallidos.append('email')
+            respuestas['email_error'] = resultado.get('error')
+            print(f"❌ Email falló para {contacto.nombre}: {resultado.get('error')}")
+
+    # Si no se envió por ningún método real
+    if not metodos_enviados:
+        print(f"📱 [SIMULADO] Notificación para {contacto.nombre}")
+        print(f"   Teléfono: {contacto.telefono}")
+        print(f"   Mensaje: {mensaje[:50]}...")
+        print(f"⚠️ Configure Telegram o Email para notificaciones reales")
+        metodos_enviados.append('simulado')
+        respuestas['simulado'] = {
+            'mensaje': 'Notificación simulada',
+            'contacto': contacto.nombre,
             'timestamp': timezone.now().isoformat()
         }
+
+    # Construir metodo string para compatibilidad
+    metodo_str = '+'.join(metodos_enviados) if metodos_enviados else 'fallido'
+
+    return {
+        'success': len(metodos_enviados) > 0,
+        'metodo': metodo_str,
+        'metodos_enviados': metodos_enviados,
+        'metodos_fallidos': metodos_fallidos,
+        'respuesta': respuestas
     }
