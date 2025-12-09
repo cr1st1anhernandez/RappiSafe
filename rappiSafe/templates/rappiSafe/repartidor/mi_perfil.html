@@ -94,6 +94,67 @@
             </div>
         </div>
 
+        <!-- Contactos de Emergencia -->
+        <div class="card">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-users text-red-600 text-lg"></i>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-xl font-semibold text-gray-900">Contactos de Emergencia</h2>
+                    <p class="text-sm text-gray-500">Serán notificados automáticamente cuando actives una alerta (máximo 3)</p>
+                </div>
+            </div>
+
+            <!-- Lista de contactos -->
+            <div id="contactos-lista" class="space-y-3 mb-4">
+                {% for contacto in contactos %}
+                <div class="p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-rappi-red/10 flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-user text-rappi-red"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-gray-900">{{ contacto.nombre }}</h4>
+                            <p class="text-sm text-gray-600">{{ contacto.telefono }}</p>
+                            {% if contacto.relacion %}
+                            <p class="text-xs text-gray-500">{{ contacto.relacion }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if contacto.validado %}
+                        <span class="badge badge-success text-xs">Validado</span>
+                        {% else %}
+                        <span class="badge badge-warning text-xs">Pendiente</span>
+                        {% endif %}
+                        <button type="button" onclick="eliminarContacto({{ contacto.id }})"
+                                class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors flex items-center justify-center">
+                            <i class="fas fa-trash text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-8 rounded-xl bg-gray-50 border border-gray-100 text-center">
+                    <i class="fas fa-users text-4xl text-gray-300 mb-3"></i>
+                    <p class="text-gray-600 text-sm">No tienes contactos de emergencia registrados</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Botón para agregar contacto -->
+            {% if contactos.count < 3 %}
+            <button type="button" onclick="mostrarFormularioContacto()" class="w-full btn-secondary">
+                <i class="fas fa-plus mr-2"></i>Agregar Contacto de Emergencia
+            </button>
+            {% else %}
+            <div class="p-3 rounded-lg bg-blue-50 text-blue-800 text-sm flex items-center gap-2">
+                <i class="fas fa-info-circle"></i>
+                <span>Has alcanzado el límite de 3 contactos de emergencia</span>
+            </div>
+            {% endif %}
+        </div>
+
         <!-- Información de Seguro -->
         <div class="card">
             <div class="flex items-center gap-3 mb-6">
@@ -175,6 +236,79 @@
             </div>
         </div>
 
+        <!-- Detección de Agitación -->
+        <div class="card">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="status-icon-warning">
+                    <i class="fas fa-mobile-alt"></i>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-xl font-semibold text-gray-900">Detección de Agitación</h2>
+                    <p class="text-sm text-gray-500">Envía automáticamente una alerta al agitar tu teléfono</p>
+                </div>
+            </div>
+
+            <!-- Checkbox para activar/desactivar detección -->
+            <div class="mb-6 p-4 rounded-xl bg-orange-50 border border-orange-100">
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="agitacion_habilitada"
+                           class="w-5 h-5 text-rappi-red focus:ring-rappi-red/20 border-gray-300 rounded transition-colors"
+                           {% if perfil.agitacion_habilitada %}checked{% endif %}
+                           onchange="toggleAgitacionFields(this.checked)">
+                    <span class="ml-3">
+                        <span class="text-gray-900 font-medium block">Activar detección de agitación</span>
+                        <span class="text-xs text-gray-500">Cuando agites tu teléfono se enviará una alerta de pánico automáticamente</span>
+                    </span>
+                </label>
+            </div>
+
+            <!-- Configuración de sensibilidad -->
+            <div id="agitacion-fields" class="{% if not perfil.agitacion_habilitada %}hidden{% endif %} space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-3">
+                        Sensibilidad de detección
+                    </label>
+                    <div class="space-y-3">
+                        <input type="range" name="sensibilidad_agitacion"
+                               min="10" max="30" value="{{ perfil.sensibilidad_agitacion }}"
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+                               oninput="document.getElementById('sensibilidad-value').textContent = this.value">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">
+                                <i class="fas fa-feather text-xs"></i> Menos sensible
+                            </span>
+                            <span class="text-gray-900 font-bold">
+                                Nivel: <span id="sensibilidad-value">{{ perfil.sensibilidad_agitacion }}</span>
+                            </span>
+                            <span class="text-gray-600">
+                                Más sensible <i class="fas fa-bolt text-xs"></i>
+                            </span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">
+                        <i class="fas fa-info-circle"></i>
+                        Valores más bajos = movimiento más fuerte necesario. Valores más altos = más sensible a movimientos pequeños.
+                    </p>
+                </div>
+
+                <!-- Nota informativa -->
+                <div class="alert-warning">
+                    <div class="flex items-start gap-3">
+                        <div class="status-icon-warning flex-shrink-0">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm text-orange-800 font-medium mb-1">Importante</p>
+                            <p class="text-sm text-orange-700">
+                                Esta función solo está disponible en dispositivos móviles con sensor de movimiento.
+                                Agita tu teléfono con fuerza en caso de emergencia para enviar una alerta automática.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Botones de acción -->
         <div class="flex flex-col sm:flex-row gap-3 sticky bottom-4 bg-white/95 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-gray-100">
             <button type="submit" class="flex-1 btn-primary py-4">
@@ -186,6 +320,41 @@
             </a>
         </div>
     </form>
+
+    <!-- Modal para agregar contacto -->
+    <div id="modal-contacto" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center px-4">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-rappi-red/10 flex items-center justify-center">
+                    <i class="fas fa-user-plus text-rappi-red"></i>
+                </div>
+                Nuevo Contacto de Emergencia
+            </h3>
+            <form id="form-contacto" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-2">Nombre completo *</label>
+                    <input type="text" name="nombre" required class="input" placeholder="Ej: Juan Pérez">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-2">Teléfono *</label>
+                    <input type="tel" name="telefono" required class="input" placeholder="+5215512345678">
+                    <p class="text-xs text-gray-500 mt-1.5">Incluye código de país (+52 para México)</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-900 mb-2">Relación (opcional)</label>
+                    <input type="text" name="relacion" class="input" placeholder="Ej: Familiar, Amigo, Pareja">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="cerrarFormularioContacto()" class="flex-1 btn-secondary">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="flex-1 btn-primary">
+                        <i class="fas fa-save mr-2"></i>Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -211,6 +380,104 @@
                 fields.classList.add('hidden');
             }, 200);
         }
+    }
+
+    function toggleAgitacionFields(show) {
+        const fields = document.getElementById('agitacion-fields');
+        if (show) {
+            fields.classList.remove('hidden');
+            // Animación suave
+            fields.style.opacity = '0';
+            fields.style.transform = 'translateY(-10px)';
+            setTimeout(() => {
+                fields.style.transition = 'all 0.3s ease-out';
+                fields.style.opacity = '1';
+                fields.style.transform = 'translateY(0)';
+            }, 10);
+        } else {
+            fields.style.transition = 'all 0.2s ease-in';
+            fields.style.opacity = '0';
+            fields.style.transform = 'translateY(-10px)';
+            setTimeout(() => {
+                fields.classList.add('hidden');
+            }, 200);
+        }
+    }
+
+    // Funciones para gestionar contactos de emergencia
+    function mostrarFormularioContacto() {
+        document.getElementById('modal-contacto').classList.remove('hidden');
+    }
+
+    function cerrarFormularioContacto() {
+        document.getElementById('modal-contacto').classList.add('hidden');
+        document.getElementById('form-contacto').reset();
+    }
+
+    // Manejar envío del formulario de contacto
+    document.getElementById('form-contacto').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Guardando...';
+
+        fetch('{% url "agregar_contacto" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.RappiSafe.csrfToken
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+
+            if (result.success) {
+                cerrarFormularioContacto();
+                location.reload();
+            } else {
+                alert(result.error || 'Error al agregar contacto');
+            }
+        })
+        .catch(error => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            console.error('Error:', error);
+            alert('Error al agregar contacto');
+        });
+    });
+
+    // Función para eliminar contacto
+    function eliminarContacto(contactoId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar este contacto de emergencia?')) {
+            return;
+        }
+
+        fetch(`/repartidor/contactos/eliminar/${contactoId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': window.RappiSafe.csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                location.reload();
+            } else {
+                alert(result.error || 'Error al eliminar contacto');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error al eliminar contacto');
+        });
     }
 </script>
 {% endblock %}

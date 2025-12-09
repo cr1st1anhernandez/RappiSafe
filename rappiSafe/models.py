@@ -60,6 +60,10 @@ class RepartidorProfile(models.Model):
     telefono_aseguradora = models.CharField(max_length=20, blank=True, verbose_name='Teléfono de la aseguradora')
     vigencia_seguro = models.DateField(null=True, blank=True, verbose_name='Vigencia del seguro')
 
+    # Configuración de detección de agitación
+    sensibilidad_agitacion = models.IntegerField(default=15, verbose_name='Sensibilidad de agitación (10-30)')
+    agitacion_habilitada = models.BooleanField(default=True, verbose_name='Detección de agitación habilitada')
+
     class Meta:
         verbose_name = 'Perfil de Repartidor'
         verbose_name_plural = 'Perfiles de Repartidores'
@@ -274,3 +278,38 @@ class RutaSegura(models.Model):
 
     def __str__(self):
         return f"Ruta de {self.repartidor.get_full_name()} - {self.creado_en.strftime('%Y-%m-%d %H:%M')}"
+
+
+class NotificacionContacto(models.Model):
+    """
+    Registro de notificaciones enviadas a contactos de emergencia
+    """
+    METODOS = (
+        ('sms', 'SMS'),
+        ('whatsapp', 'WhatsApp'),
+        ('llamada', 'Llamada'),
+    )
+
+    ESTADOS = (
+        ('enviado', 'Enviado'),
+        ('entregado', 'Entregado'),
+        ('fallido', 'Fallido'),
+        ('pendiente', 'Pendiente'),
+    )
+
+    alerta = models.ForeignKey(Alerta, on_delete=models.CASCADE, related_name='notificaciones_contactos')
+    contacto = models.ForeignKey(ContactoConfianza, on_delete=models.CASCADE, related_name='notificaciones')
+    metodo = models.CharField(max_length=20, choices=METODOS, default='sms', verbose_name='Método de notificación')
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='pendiente', verbose_name='Estado')
+    mensaje = models.TextField(verbose_name='Mensaje enviado')
+    respuesta_api = models.JSONField(null=True, blank=True, verbose_name='Respuesta del servicio')
+    enviado_en = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de envío')
+    error_mensaje = models.TextField(blank=True, verbose_name='Mensaje de error')
+
+    class Meta:
+        verbose_name = 'Notificación a Contacto'
+        verbose_name_plural = 'Notificaciones a Contactos'
+        ordering = ['-enviado_en']
+
+    def __str__(self):
+        return f"Notificación a {self.contacto.nombre} - {self.get_metodo_display()}"

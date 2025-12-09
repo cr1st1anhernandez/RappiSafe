@@ -1,17 +1,19 @@
-{% extends 'rappiSafe/base.html' %}
+{% extends 'rappiSafe/operador/base_operador.html' %}
 {% load static %}
 
 {% block title %}Monitoreo - Rappi Safe{% endblock %}
 
-{% block main_class %}h-screen flex flex-col{% endblock %}
-
-{% block content %}
+{% block operador_content %}
 <div class="flex-1 flex overflow-hidden">
     <!-- Sidebar con lista de alertas -->
     <div class="w-96 bg-white border-r border-gray-200 flex flex-col">
         <div class="p-4 border-b border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-800">Alertas Activas</h2>
-            <p class="text-sm text-gray-600">Monitoreo en tiempo real</p>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">Alertas Activas</h2>
+                    <p class="text-sm text-gray-600">Monitoreo en tiempo real</p>
+                </div>
+            </div>
         </div>
 
         <div id="alertas-container" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">

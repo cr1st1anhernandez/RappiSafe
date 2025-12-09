@@ -1,0 +1,121 @@
+{% extends 'rappiSafe/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    /* Contenedor principal con espacio para bottom nav */
+    .main-container-operador {
+        position: fixed;
+        top: 64px; /* Altura del navbar */
+        left: 0;
+        right: 0;
+        bottom: 64px; /* Altura del bottom nav */
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Para páginas que necesitan layout especial (como dashboard) */
+    .main-container-operador > .flex-1 {
+        flex: 1;
+        overflow: hidden;
+    }
+
+    /* Bottom nav */
+    .bottom-nav-operador {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 64px;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        z-index: 50;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .bottom-nav-operador a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px 16px;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        border-radius: 8px;
+    }
+
+    .bottom-nav-operador a:hover {
+        background: #f3f4f6;
+    }
+
+    .bottom-nav-operador a.active {
+        color: #dc2626;
+    }
+
+    .bottom-nav-operador a:not(.active) {
+        color: #6b7280;
+    }
+
+    /* Badge para notificaciones */
+    .nav-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #dc2626;
+        color: white;
+        font-size: 10px;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 10px;
+        min-width: 18px;
+        text-align: center;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .bottom-nav-operador a span {
+            font-size: 11px;
+        }
+        .bottom-nav-operador a i {
+            font-size: 18px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block main_class %}p-0 max-w-none{% endblock %}
+
+{% block content %}
+<!-- Contenedor principal con espacio para bottom nav -->
+<div class="main-container-operador">
+    {% block operador_content %}
+    <!-- El contenido específico de cada página va aquí -->
+    {% endblock %}
+</div>
+
+<!-- Bottom Navigation -->
+<div class="bottom-nav-operador">
+    <a href="{% url 'operador_dashboard' %}" class="{% if request.resolver_match.url_name == 'operador_dashboard' %}active{% endif %}">
+        <i class="fas fa-eye text-xl mb-1"></i>
+        <span class="text-xs font-medium">Monitoreo</span>
+    </a>
+    <a href="{% url 'lista_repartidores' %}" class="{% if request.resolver_match.url_name == 'lista_repartidores' %}active{% endif %}">
+        <i class="fas fa-users text-xl mb-1"></i>
+        <span class="text-xs font-medium">Repartidores</span>
+    </a>
+    <a href="{% url 'gestionar_solicitudes_psicologicas' %}" class="{% if request.resolver_match.url_name == 'gestionar_solicitudes_psicologicas' %}active{% endif %} relative">
+        <i class="fas fa-brain text-xl mb-1"></i>
+        <span class="text-xs font-medium">Ayuda Psico</span>
+        {% if total_solicitudes_pendientes > 0 %}
+        <span class="nav-badge">{{ total_solicitudes_pendientes }}</span>
+        {% endif %}
+    </a>
+    <a href="{% url 'reportes_operador' %}" class="{% if request.resolver_match.url_name == 'reportes_operador' %}active{% endif %}">
+        <i class="fas fa-chart-bar text-xl mb-1"></i>
+        <span class="text-xs font-medium">Reportes</span>
+    </a>
+</div>
+{% endblock %}

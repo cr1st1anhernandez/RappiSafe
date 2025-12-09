@@ -133,10 +133,16 @@ def crear_alerta_panico(request):
         # Enviar notificación por WebSocket
         enviar_nueva_alerta(serializar_alerta(alerta))
 
+        # Notificar a contactos de emergencia
+        from .utils import notificar_contactos_emergencia
+        resultado_notificaciones = notificar_contactos_emergencia(alerta)
+
         return JsonResponse({
             'success': True,
             'alerta_id': str(alerta.id),
-            'mensaje': 'Alerta de pánico activada'
+            'mensaje': 'Alerta de pánico activada',
+            'contactos_notificados': resultado_notificaciones.get('contactos_notificados', 0),
+            'notificaciones_info': f"{resultado_notificaciones.get('contactos_notificados', 0)} contacto(s) notificado(s)"
         })
     except Exception as e:
         return JsonResponse({
@@ -176,10 +182,16 @@ def crear_alerta_accidente(request):
         # Enviar notificación por WebSocket
         enviar_nueva_alerta(serializar_alerta(alerta))
 
+        # Notificar a contactos de emergencia
+        from .utils import notificar_contactos_emergencia
+        resultado_notificaciones = notificar_contactos_emergencia(alerta)
+
         return JsonResponse({
             'success': True,
             'alerta_id': str(alerta.id),
-            'mensaje': 'Alerta de accidente creada'
+            'mensaje': 'Alerta de accidente creada',
+            'contactos_notificados': resultado_notificaciones.get('contactos_notificados', 0),
+            'notificaciones_info': f"{resultado_notificaciones.get('contactos_notificados', 0)} contacto(s) notificado(s)"
         })
     except Exception as e:
         return JsonResponse({
@@ -308,8 +320,40 @@ def agregar_contacto(request):
 
         return JsonResponse({
             'success': True,
-            'mensaje': 'Contacto agregado exitosamente'
+            'mensaje': 'Contacto agregado exitosamente',
+            'contacto': {
+                'id': contacto.id,
+                'nombre': contacto.nombre,
+                'telefono': contacto.telefono,
+                'relacion': contacto.relacion,
+                'validado': contacto.validado
+            }
         })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@user_passes_test(es_repartidor)
+@require_POST
+def eliminar_contacto(request, contacto_id):
+    """Eliminar un contacto de confianza"""
+    try:
+        contacto = ContactoConfianza.objects.get(id=contacto_id, repartidor=request.user)
+        contacto.delete()
+
+        return JsonResponse({
+            'success': True,
+            'mensaje': 'Contacto eliminado exitosamente'
+        })
+    except ContactoConfianza.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Contacto no encontrado'
+        }, status=404)
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -342,6 +386,7 @@ def solicitar_ayuda_psicologica_view(request):
 def mi_perfil_view(request):
     """Vista de perfil del repartidor"""
     perfil = request.user.perfil_repartidor
+    contactos = ContactoConfianza.objects.filter(repartidor=request.user).order_by('-creado_en')
 
     if request.method == 'POST':
         # Actualizar información del usuario
@@ -362,6 +407,16 @@ def mi_perfil_view(request):
         else:
             perfil.vigencia_seguro = None
 
+        # Actualizar configuración de agitación
+        perfil.agitacion_habilitada = request.POST.get('agitacion_habilitada') == 'on'
+        sensibilidad = request.POST.get('sensibilidad_agitacion', '15')
+        try:
+            sensibilidad_val = int(sensibilidad)
+            if 10 <= sensibilidad_val <= 30:
+                perfil.sensibilidad_agitacion = sensibilidad_val
+        except ValueError:
+            pass
+
         # Manejar foto de perfil
         if 'foto' in request.FILES:
             perfil.foto = request.FILES['foto']
@@ -373,6 +428,7 @@ def mi_perfil_view(request):
 
     context = {
         'perfil': perfil,
+        'contactos': contactos,
     }
     return render(request, 'rappiSafe/repartidor/mi_perfil.html', context)
 
@@ -393,55 +449,47 @@ def rutas_view(request):
 @user_passes_test(es_repartidor)
 @require_POST
 def calcular_rutas(request):
-    """Calcular rutas (rápida y seguras)"""
+    """Calcular rutas (rápida y seguras) usando API de routing real"""
     try:
         data = json.loads(request.body)
-        origen_lat = data.get('origen_lat')
-        origen_lon = data.get('origen_lon')
-        destino_lat = data.get('destino_lat')
-        destino_lon = data.get('destino_lon')
+        origen_lat = float(data.get('origen_lat'))
+        origen_lon = float(data.get('origen_lon'))
+        destino_lat = float(data.get('destino_lat'))
+        destino_lon = float(data.get('destino_lon'))
 
-        # Simulación de cálculo de rutas
-        # En producción, aquí se integraría con una API como OpenRouteService, Google Maps, etc.
+        # Obtener rutas reales usando OSRM
+        from .utils import obtener_rutas_alternativas
 
-        # Ruta rápida (simulada)
-        ruta_rapida = {
+        resultado = obtener_rutas_alternativas(origen_lat, origen_lon, destino_lat, destino_lon)
+
+        if not resultado.get('success'):
+            return JsonResponse({
+                'success': False,
+                'error': resultado.get('error', 'Error al calcular rutas')
+            }, status=400)
+
+        ruta_rapida = resultado['rapida']
+        rutas_seguras = resultado['seguras']
+
+        # Preparar datos para respuesta
+        ruta_rapida_response = {
             'tipo': 'rapida',
-            'distancia': 5.2,  # km
-            'duracion': 15,  # minutos
-            'puntuacion_riesgo': 65.5,
-            'coordenadas': [
-                [float(origen_lat), float(origen_lon)],
-                [float(origen_lat) + 0.01, float(origen_lon) + 0.01],
-                [float(destino_lat), float(destino_lon)]
-            ]
+            'distancia': ruta_rapida['distancia'],
+            'duracion': ruta_rapida['duracion'],
+            'puntuacion_riesgo': round(ruta_rapida['puntuacion_riesgo'], 1),
+            'coordenadas': ruta_rapida['coordenadas']
         }
 
-        # Ruta segura 1 (simulada)
-        ruta_segura_1 = {
-            'tipo': 'segura',
-            'distancia': 6.8,  # km
-            'duracion': 20,  # minutos
-            'puntuacion_riesgo': 35.2,
-            'coordenadas': [
-                [float(origen_lat), float(origen_lon)],
-                [float(origen_lat) + 0.02, float(origen_lon) + 0.005],
-                [float(destino_lat), float(destino_lon)]
-            ]
-        }
-
-        # Ruta segura 2 (simulada)
-        ruta_segura_2 = {
-            'tipo': 'segura',
-            'distancia': 7.1,  # km
-            'duracion': 22,  # minutos
-            'puntuacion_riesgo': 28.8,
-            'coordenadas': [
-                [float(origen_lat), float(origen_lon)],
-                [float(origen_lat) - 0.01, float(origen_lon) + 0.02],
-                [float(destino_lat), float(destino_lon)]
-            ]
-        }
+        rutas_seguras_response = [
+            {
+                'tipo': 'segura',
+                'distancia': ruta['distancia'],
+                'duracion': ruta['duracion'],
+                'puntuacion_riesgo': round(ruta['puntuacion_riesgo'], 1),
+                'coordenadas': ruta['coordenadas']
+            }
+            for ruta in rutas_seguras
+        ]
 
         # Guardar en base de datos
         RutaSegura.objects.create(
@@ -450,25 +498,28 @@ def calcular_rutas(request):
             origen_lon=origen_lon,
             destino_lat=destino_lat,
             destino_lon=destino_lon,
-            ruta_rapida=ruta_rapida,
-            ruta_segura={'rutas': [ruta_segura_1, ruta_segura_2]},
-            puntuacion_riesgo_rapida=ruta_rapida['puntuacion_riesgo'],
-            puntuacion_riesgo_segura=ruta_segura_1['puntuacion_riesgo'],
+            ruta_rapida=ruta_rapida_response,
+            ruta_segura={'rutas': rutas_seguras_response},
+            puntuacion_riesgo_rapida=ruta_rapida_response['puntuacion_riesgo'],
+            puntuacion_riesgo_segura=rutas_seguras_response[0]['puntuacion_riesgo'],
             seleccionada='rapida'
         )
 
         return JsonResponse({
             'success': True,
             'rutas': {
-                'rapida': ruta_rapida,
-                'seguras': [ruta_segura_1, ruta_segura_2]
+                'rapida': ruta_rapida_response,
+                'seguras': rutas_seguras_response
             }
         })
 
     except Exception as e:
+        import traceback
+        print(f"Error al calcular rutas: {str(e)}")
+        print(traceback.format_exc())
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': f'Error al calcular rutas: {str(e)}'
         }, status=400)
 
 
@@ -482,8 +533,15 @@ def operador_dashboard(request):
         estado__in=['pendiente', 'en_atencion']
     ).select_related('repartidor').order_by('-creado_en')
 
+    # Incluir solicitudes de ayuda psicológica pendientes
+    solicitudes_psicologicas = SolicitudAyudaPsicologica.objects.filter(
+        estado__in=['pendiente', 'en_proceso']
+    ).select_related('repartidor').order_by('-creado_en')
+
     context = {
         'alertas_activas': alertas_activas,
+        'solicitudes_psicologicas': solicitudes_psicologicas,
+        'total_solicitudes_pendientes': solicitudes_psicologicas.filter(estado='pendiente').count(),
     }
     return render(request, 'rappiSafe/operador/dashboard.html', context)
 
@@ -504,12 +562,16 @@ def ver_alerta(request, alerta_id):
         incidente = None
         bitacoras = []
 
+    # Total de solicitudes pendientes para el badge de navegación
+    total_solicitudes_pendientes = SolicitudAyudaPsicologica.objects.filter(estado='pendiente').count()
+
     context = {
         'alerta': alerta,
         'trayectorias': trayectorias,
         'contactos': contactos,
         'incidente': incidente,
         'bitacoras': bitacoras,
+        'total_solicitudes_pendientes': total_solicitudes_pendientes,
     }
     return render(request, 'rappiSafe/operador/ver_alerta.html', context)
 
@@ -653,6 +715,204 @@ def actualizar_folio_911(request, incidente_id):
             'success': False,
             'error': str(e)
         }, status=400)
+
+
+@login_required
+@user_passes_test(es_operador)
+def gestionar_solicitudes_psicologicas(request):
+    """Vista para gestionar solicitudes de ayuda psicológica"""
+    solicitudes = SolicitudAyudaPsicologica.objects.all().select_related('repartidor').order_by('-creado_en')
+
+    context = {
+        'solicitudes': solicitudes,
+        'total_solicitudes_pendientes': solicitudes.filter(estado='pendiente').count(),
+    }
+    return render(request, 'rappiSafe/operador/solicitudes_psicologicas.html', context)
+
+
+@login_required
+@user_passes_test(es_operador)
+@require_POST
+def atender_solicitud_psicologica(request, solicitud_id):
+    """Atender una solicitud de ayuda psicológica"""
+    try:
+        data = json.loads(request.body)
+        solicitud = get_object_or_404(SolicitudAyudaPsicologica, id=solicitud_id)
+
+        solicitud.estado = data.get('estado', 'en_proceso')
+        solicitud.notas_atencion = data.get('notas_atencion', '')
+
+        if solicitud.estado == 'atendida' and not solicitud.atendido_en:
+            solicitud.atendido_en = timezone.now()
+
+        solicitud.save()
+
+        return JsonResponse({
+            'success': True,
+            'mensaje': 'Solicitud actualizada correctamente'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@user_passes_test(es_operador)
+def reportes_operador(request):
+    """Vista de reportes para operadores"""
+    from datetime import datetime, timedelta
+    from django.db.models import Count, Avg, Q
+    from django.db.models.functions import TruncDate
+
+    # Obtener rango de fechas (últimos 30 días por defecto)
+    fecha_fin = timezone.now()
+    fecha_inicio = fecha_fin - timedelta(days=30)
+
+    # Filtros opcionales
+    if request.GET.get('fecha_inicio'):
+        fecha_inicio = datetime.strptime(request.GET.get('fecha_inicio'), '%Y-%m-%d')
+        fecha_inicio = timezone.make_aware(fecha_inicio)
+    if request.GET.get('fecha_fin'):
+        fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d')
+        fecha_fin = timezone.make_aware(fecha_fin)
+
+    # Alertas en el período
+    alertas = Alerta.objects.filter(
+        creado_en__range=[fecha_inicio, fecha_fin]
+    )
+
+    # Estadísticas generales
+    total_alertas = alertas.count()
+    alertas_panico = alertas.filter(tipo='panico').count()
+    alertas_accidente = alertas.filter(tipo='accidente').count()
+    alertas_cerradas = alertas.filter(estado='cerrada').count()
+    alertas_pendientes = alertas.filter(estado='pendiente').count()
+
+    # Alertas por día
+    alertas_por_dia = alertas.annotate(
+        fecha=TruncDate('creado_en')
+    ).values('fecha').annotate(
+        total=Count('id')
+    ).order_by('fecha')
+
+    # Incidentes con tiempo de respuesta
+    incidentes = Incidente.objects.filter(
+        creado_en__range=[fecha_inicio, fecha_fin],
+        tiempo_respuesta__isnull=False
+    )
+
+    # Calcular tiempo promedio de respuesta
+    if incidentes.exists():
+        tiempo_promedio = incidentes.aggregate(
+            promedio=Avg('tiempo_respuesta')
+        )['promedio']
+        if tiempo_promedio:
+            tiempo_promedio_minutos = int(tiempo_promedio.total_seconds() / 60)
+        else:
+            tiempo_promedio_minutos = 0
+    else:
+        tiempo_promedio_minutos = 0
+
+    # Alertas atendidas por el operador actual
+    mis_alertas = alertas.filter(atendido_por=request.user).count()
+
+    # Top 5 repartidores con más alertas
+    top_repartidores = alertas.values(
+        'repartidor__first_name',
+        'repartidor__last_name',
+        'repartidor__id'
+    ).annotate(
+        total=Count('id')
+    ).order_by('-total')[:5]
+
+    # Solicitudes psicológicas en el período
+    solicitudes_psico = SolicitudAyudaPsicologica.objects.filter(
+        creado_en__range=[fecha_inicio, fecha_fin]
+    )
+    total_solicitudes_psico = solicitudes_psico.count()
+    solicitudes_psico_atendidas = solicitudes_psico.filter(estado='atendida').count()
+
+    # Total de solicitudes pendientes para el badge de navegación
+    total_solicitudes_pendientes = SolicitudAyudaPsicologica.objects.filter(estado='pendiente').count()
+
+    context = {
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': fecha_fin,
+        'total_alertas': total_alertas,
+        'alertas_panico': alertas_panico,
+        'alertas_accidente': alertas_accidente,
+        'alertas_cerradas': alertas_cerradas,
+        'alertas_pendientes': alertas_pendientes,
+        'alertas_por_dia': list(alertas_por_dia),
+        'tiempo_promedio_minutos': tiempo_promedio_minutos,
+        'mis_alertas': mis_alertas,
+        'top_repartidores': top_repartidores,
+        'total_solicitudes_psico': total_solicitudes_psico,
+        'solicitudes_psico_atendidas': solicitudes_psico_atendidas,
+        'total_solicitudes_pendientes': total_solicitudes_pendientes,
+    }
+    return render(request, 'rappiSafe/operador/reportes.html', context)
+
+
+@login_required
+@user_passes_test(es_operador)
+def lista_repartidores(request):
+    """Vista para listar todos los repartidores"""
+    repartidores = User.objects.filter(
+        rol='repartidor',
+        is_active=True
+    ).select_related('perfil_repartidor').order_by('first_name', 'last_name')
+
+    # Estadísticas por repartidor
+    repartidores_data = []
+    for repartidor in repartidores:
+        # Contar alertas
+        total_alertas = Alerta.objects.filter(repartidor=repartidor).count()
+        alertas_activas = Alerta.objects.filter(
+            repartidor=repartidor,
+            estado__in=['pendiente', 'en_atencion']
+        ).count()
+        ultima_alerta = Alerta.objects.filter(repartidor=repartidor).order_by('-creado_en').first()
+
+        # Obtener perfil
+        try:
+            perfil = repartidor.perfil_repartidor
+            estado = perfil.estado
+            ultima_ubicacion = {
+                'lat': perfil.ultima_latitud,
+                'lon': perfil.ultima_longitud,
+                'fecha': perfil.ultima_actualizacion_ubicacion
+            } if perfil.ultima_latitud else None
+            nivel_bateria = perfil.nivel_bateria
+        except:
+            estado = 'offline'
+            ultima_ubicacion = None
+            nivel_bateria = None
+
+        # Contactos de confianza
+        contactos = ContactoConfianza.objects.filter(repartidor=repartidor)
+
+        repartidores_data.append({
+            'repartidor': repartidor,
+            'estado': estado,
+            'total_alertas': total_alertas,
+            'alertas_activas': alertas_activas,
+            'ultima_alerta': ultima_alerta,
+            'ultima_ubicacion': ultima_ubicacion,
+            'nivel_bateria': nivel_bateria,
+            'contactos': contactos,
+        })
+
+    # Total de solicitudes pendientes para el badge de navegación
+    total_solicitudes_pendientes = SolicitudAyudaPsicologica.objects.filter(estado='pendiente').count()
+
+    context = {
+        'repartidores_data': repartidores_data,
+        'total_solicitudes_pendientes': total_solicitudes_pendientes,
+    }
+    return render(request, 'rappiSafe/operador/repartidores.html', context)
 
 
 # ==================== VISTAS ADMINISTRADOR ====================

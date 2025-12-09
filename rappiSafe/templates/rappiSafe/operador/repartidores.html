@@ -1,0 +1,276 @@
+{% extends 'rappiSafe/operador/base_operador.html' %}
+{% load static %}
+
+{% block title %}Repartidores - Rappi Safe{% endblock %}
+
+{% block operador_content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-1 flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
+                <i class="fas fa-users text-indigo-600 text-xl"></i>
+            </div>
+            Repartidores
+        </h1>
+        <p class="text-gray-500">Lista completa de repartidores y su estado actual</p>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-6">
+        <div class="flex gap-4 items-center">
+            <div class="flex-1">
+                <input type="text" id="search-input" placeholder="Buscar por nombre, teléfono..." class="input">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="filtrarPorEstado('todos')" class="btn-secondary text-sm" id="btn-todos">
+                    Todos
+                </button>
+                <button onclick="filtrarPorEstado('disponible')" class="btn-secondary text-sm" id="btn-disponible">
+                    <i class="fas fa-circle text-green-500 mr-1"></i>Disponible
+                </button>
+                <button onclick="filtrarPorEstado('en_ruta')" class="btn-secondary text-sm" id="btn-en_ruta">
+                    <i class="fas fa-circle text-blue-500 mr-1"></i>En Ruta
+                </button>
+                <button onclick="filtrarPorEstado('emergencia')" class="btn-secondary text-sm" id="btn-emergencia">
+                    <i class="fas fa-circle text-red-500 mr-1"></i>Emergencia
+                </button>
+                <button onclick="filtrarPorEstado('offline')" class="btn-secondary text-sm" id="btn-offline">
+                    <i class="fas fa-circle text-gray-400 mr-1"></i>Offline
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de repartidores -->
+    <div class="grid grid-cols-1 gap-4" id="repartidores-container">
+        {% for data in repartidores_data %}
+        <div class="card repartidor-item"
+             data-estado="{{ data.estado }}"
+             data-nombre="{{ data.repartidor.get_full_name|lower }}"
+             data-telefono="{{ data.repartidor.telefono }}">
+
+            <div class="flex items-start gap-4">
+                <!-- Avatar y estado -->
+                <div class="flex-shrink-0">
+                    <div class="relative">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-2xl font-bold">
+                            {{ data.repartidor.first_name.0 }}{{ data.repartidor.last_name.0 }}
+                        </div>
+                        <!-- Estado indicator -->
+                        <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white
+                                    {% if data.estado == 'disponible' %}bg-green-500
+                                    {% elif data.estado == 'en_ruta' %}bg-blue-500
+                                    {% elif data.estado == 'emergencia' %}bg-red-500 animate-pulse
+                                    {% else %}bg-gray-400{% endif %}">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Información principal -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1">
+                            <h3 class="text-xl font-bold text-gray-900">
+                                {{ data.repartidor.get_full_name }}
+                            </h3>
+                            <div class="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                                <span><i class="fas fa-phone mr-1"></i>{{ data.repartidor.telefono }}</span>
+                                <span><i class="fas fa-envelope mr-1"></i>{{ data.repartidor.email }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Estado badge -->
+                        <span class="badge
+                                    {% if data.estado == 'disponible' %}badge-success
+                                    {% elif data.estado == 'en_ruta' %}badge-info
+                                    {% elif data.estado == 'emergencia' %}badge-danger
+                                    {% else %}badge-secondary{% endif %}">
+                            {{ data.estado|title }}
+                        </span>
+                    </div>
+
+                    <!-- Estadísticas -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div class="p-3 rounded-lg bg-gray-50">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-exclamation-triangle text-orange-500"></i>
+                                <span class="text-2xl font-bold text-gray-900">{{ data.total_alertas }}</span>
+                            </div>
+                            <p class="text-xs text-gray-600 mt-1">Total alertas</p>
+                        </div>
+
+                        <div class="p-3 rounded-lg bg-red-50">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-fire text-red-500"></i>
+                                <span class="text-2xl font-bold text-red-900">{{ data.alertas_activas }}</span>
+                            </div>
+                            <p class="text-xs text-red-700 mt-1">Alertas activas</p>
+                        </div>
+
+                        {% if data.nivel_bateria %}
+                        <div class="p-3 rounded-lg {% if data.nivel_bateria > 50 %}bg-green-50{% elif data.nivel_bateria > 20 %}bg-yellow-50{% else %}bg-red-50{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-battery-{% if data.nivel_bateria > 75 %}full{% elif data.nivel_bateria > 50 %}three-quarters{% elif data.nivel_bateria > 25 %}half{% else %}quarter{% endif %}
+                                   {% if data.nivel_bateria > 50 %}text-green-500{% elif data.nivel_bateria > 20 %}text-yellow-500{% else %}text-red-500{% endif %}"></i>
+                                <span class="text-2xl font-bold {% if data.nivel_bateria > 50 %}text-green-900{% elif data.nivel_bateria > 20 %}text-yellow-900{% else %}text-red-900{% endif %}">
+                                    {{ data.nivel_bateria }}%
+                                </span>
+                            </div>
+                            <p class="text-xs {% if data.nivel_bateria > 50 %}text-green-700{% elif data.nivel_bateria > 20 %}text-yellow-700{% else %}text-red-700{% endif %} mt-1">
+                                Batería
+                            </p>
+                        </div>
+                        {% else %}
+                        <div class="p-3 rounded-lg bg-gray-50">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-battery-empty text-gray-400"></i>
+                                <span class="text-2xl font-bold text-gray-400">--</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Batería</p>
+                        </div>
+                        {% endif %}
+
+                        {% if data.ultima_ubicacion %}
+                        <div class="p-3 rounded-lg bg-blue-50">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-map-marker-alt text-blue-500"></i>
+                                <span class="text-xs font-medium text-blue-900">Ubicación</span>
+                            </div>
+                            <p class="text-xs text-blue-700 mt-1">
+                                {{ data.ultima_ubicacion.fecha|timesince }} atrás
+                            </p>
+                        </div>
+                        {% else %}
+                        <div class="p-3 rounded-lg bg-gray-50">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-map-marker-alt text-gray-400"></i>
+                                <span class="text-xs font-medium text-gray-600">Sin ubicación</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">No disponible</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Última alerta -->
+                    {% if data.ultima_alerta %}
+                    <div class="p-3 rounded-lg bg-yellow-50 border border-yellow-100 mb-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-yellow-900">
+                                    <i class="fas fa-{% if data.ultima_alerta.tipo == 'panico' %}hand-paper{% else %}car-crash{% endif %} mr-1"></i>
+                                    Última alerta: {{ data.ultima_alerta.get_tipo_display }}
+                                </p>
+                                <p class="text-xs text-yellow-700 mt-1">
+                                    {{ data.ultima_alerta.creado_en|date:"d/m/Y H:i" }} - {{ data.ultima_alerta.get_estado_display }}
+                                </p>
+                            </div>
+                            {% if data.ultima_alerta.estado in 'pendiente,en_atencion' %}
+                            <a href="{% url 'ver_alerta' data.ultima_alerta.id %}" class="btn-primary text-xs">
+                                Ver Alerta
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Contactos de confianza -->
+                    {% if data.contactos %}
+                    <details class="group">
+                        <summary class="cursor-pointer list-none">
+                            <div class="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <div class="flex items-center gap-2">
+                                    <i class="fas fa-users text-gray-600"></i>
+                                    <span class="text-sm font-medium text-gray-900">
+                                        Contactos de emergencia ({{ data.contactos.count }})
+                                    </span>
+                                </div>
+                                <i class="fas fa-chevron-down text-gray-400 group-open:rotate-180 transition-transform"></i>
+                            </div>
+                        </summary>
+                        <div class="mt-2 space-y-2">
+                            {% for contacto in data.contactos %}
+                            <div class="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium text-blue-900">{{ contacto.nombre }}</p>
+                                        <p class="text-sm text-blue-700">
+                                            <i class="fas fa-phone mr-1"></i>{{ contacto.telefono }}
+                                        </p>
+                                        {% if contacto.relacion %}
+                                        <p class="text-xs text-blue-600 mt-1">{{ contacto.relacion }}</p>
+                                        {% endif %}
+                                    </div>
+                                    {% if contacto.validado %}
+                                    <span class="badge badge-success text-xs">Validado</span>
+                                    {% else %}
+                                    <span class="badge badge-warning text-xs">Pendiente</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="card text-center py-12">
+            <i class="fas fa-users-slash text-6xl text-gray-300 mb-4"></i>
+            <p class="text-gray-600">No hay repartidores registrados</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let estadoActual = 'todos';
+
+    // Búsqueda en tiempo real
+    document.getElementById('search-input').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        filtrarRepartidores(searchTerm);
+    });
+
+    function filtrarPorEstado(estado) {
+        estadoActual = estado;
+
+        // Actualizar botones activos
+        document.querySelectorAll('[id^="btn-"]').forEach(btn => {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+        });
+        document.getElementById(`btn-${estado}`).classList.remove('btn-secondary');
+        document.getElementById(`btn-${estado}`).classList.add('btn-primary');
+
+        // Aplicar filtro
+        const searchTerm = document.getElementById('search-input').value.toLowerCase();
+        filtrarRepartidores(searchTerm);
+    }
+
+    function filtrarRepartidores(searchTerm = '') {
+        document.querySelectorAll('.repartidor-item').forEach(item => {
+            const estado = item.dataset.estado;
+            const nombre = item.dataset.nombre;
+            const telefono = item.dataset.telefono;
+
+            const matchEstado = estadoActual === 'todos' || estado === estadoActual;
+            const matchSearch = searchTerm === '' ||
+                               nombre.includes(searchTerm) ||
+                               telefono.includes(searchTerm);
+
+            if (matchEstado && matchSearch) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    // Inicializar con todos
+    filtrarPorEstado('todos');
+</script>
+{% endblock %}

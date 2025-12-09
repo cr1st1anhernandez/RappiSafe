@@ -1076,11 +1076,19 @@ function activateSOS() {
 
                 if (data.success) {
                     console.log('✅ ¡ALERTA SOS ACTIVADA EXITOSAMENTE!');
+                    console.log(`📱 Contactos notificados: ${data.contactos_notificados || 0}`);
+
                     document.getElementById('sos-instruction').textContent = '¡Alerta activada!';
                     document.getElementById('sos-instruction').className = 'text-sm text-green-600 mt-4 font-bold';
 
-                    // Mostrar mensaje de éxito
-                    alert('¡Alerta SOS activada! Los operadores han sido notificados.');
+                    // Mostrar mensaje de éxito con información de notificaciones
+                    let mensaje = '¡Alerta SOS activada! Los operadores han sido notificados.';
+                    if (data.contactos_notificados && data.contactos_notificados > 0) {
+                        mensaje += `\n\n📱 ${data.contactos_notificados} contacto(s) de emergencia notificado(s) por SMS.`;
+                    } else {
+                        mensaje += '\n\n⚠️ No hay contactos de emergencia registrados. Configúralos en tu perfil.';
+                    }
+                    alert(mensaje);
 
                     // Recargar después de 2 segundos
                     setTimeout(() => {
@@ -1163,6 +1171,266 @@ function confirmCancelAlert() {
         closeAlertModal();
     });
 }
+
+// ==================== DETECCIÓN DE AGITACIÓN ====================
+{% if perfil.agitacion_habilitada %}
+(function() {
+    console.log('📱 Detección de agitación ACTIVADA');
+    console.log('🎚️ Sensibilidad configurada: {{ perfil.sensibilidad_agitacion }}');
+
+    // Variables de detección
+    let lastAcceleration = { x: 0, y: 0, z: 0 };
+    let lastTime = Date.now();
+    let shakeCount = 0;
+    let shakeTimeout = null;
+    const SHAKE_THRESHOLD = {{ perfil.sensibilidad_agitacion }};  // Umbral configurable
+    const SHAKE_TIME_WINDOW = 500; // ms para contar agitaciones
+    const REQUIRED_SHAKES = 3; // Número de agitaciones necesarias
+    const COOLDOWN_TIME = 5000; // 5 segundos de cooldown después de enviar alerta
+    let lastShakeAlert = 0;
+    let isShaking = false;
+
+    // Detectar si es dispositivo móvil
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (!isMobile) {
+        console.log('⚠️ Dispositivo no móvil detectado - Detección de agitación limitada');
+    }
+
+    // Verificar si el API DeviceMotion está disponible
+    if (typeof DeviceMotionEvent === 'undefined') {
+        console.error('❌ DeviceMotionEvent no disponible en este dispositivo');
+        return;
+    }
+
+    // Solicitar permisos en iOS 13+
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission()
+            .then(permissionState => {
+                if (permissionState === 'granted') {
+                    console.log('✅ Permiso de sensor de movimiento concedido');
+                    startShakeDetection();
+                } else {
+                    console.warn('⚠️ Permiso de sensor de movimiento denegado');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error al solicitar permiso:', error);
+            });
+    } else {
+        // No necesita permisos en Android y otros dispositivos
+        startShakeDetection();
+    }
+
+    function startShakeDetection() {
+        window.addEventListener('devicemotion', handleMotion, true);
+        console.log('👂 Escuchando eventos de movimiento...');
+    }
+
+    function handleMotion(event) {
+        const acceleration = event.accelerationIncludingGravity;
+        if (!acceleration || !acceleration.x) return;
+
+        const currentTime = Date.now();
+        const timeDiff = currentTime - lastTime;
+
+        // Calcular la diferencia de aceleración
+        const deltaX = Math.abs(acceleration.x - lastAcceleration.x);
+        const deltaY = Math.abs(acceleration.y - lastAcceleration.y);
+        const deltaZ = Math.abs(acceleration.z - lastAcceleration.z);
+
+        const totalDelta = deltaX + deltaY + deltaZ;
+
+        // Debug cada 2 segundos
+        if (currentTime - lastTime > 2000) {
+            console.log(`📊 Aceleración: ${totalDelta.toFixed(2)} (umbral: ${SHAKE_THRESHOLD})`);
+        }
+
+        // Detectar agitación si supera el umbral
+        if (totalDelta > SHAKE_THRESHOLD && timeDiff > 100) {
+            shakeCount++;
+            console.log(`🔔 Agitación detectada! Cuenta: ${shakeCount}/${REQUIRED_SHAKES}`);
+
+            // Limpiar timeout anterior
+            if (shakeTimeout) {
+                clearTimeout(shakeTimeout);
+            }
+
+            // Si alcanzó el número requerido de agitaciones
+            if (shakeCount >= REQUIRED_SHAKES) {
+                const timeSinceLastAlert = currentTime - lastShakeAlert;
+
+                if (timeSinceLastAlert > COOLDOWN_TIME) {
+                    console.log('🚨 ¡AGITACIÓN FUERTE DETECTADA! Enviando alerta...');
+                    triggerShakeAlert();
+                    lastShakeAlert = currentTime;
+                    shakeCount = 0;
+                } else {
+                    console.log(`⏳ Cooldown activo. Espera ${Math.ceil((COOLDOWN_TIME - timeSinceLastAlert) / 1000)}s`);
+                    shakeCount = 0;
+                }
+            } else {
+                // Resetear contador después de la ventana de tiempo
+                shakeTimeout = setTimeout(() => {
+                    if (shakeCount < REQUIRED_SHAKES) {
+                        console.log('⏱️ Tiempo agotado - Reseteando contador');
+                        shakeCount = 0;
+                    }
+                }, SHAKE_TIME_WINDOW);
+            }
+        }
+
+        lastAcceleration = { x: acceleration.x, y: acceleration.y, z: acceleration.z };
+        lastTime = currentTime;
+    }
+
+    function triggerShakeAlert() {
+        console.log('🚨 Disparando alerta de pánico por agitación');
+
+        // Mostrar notificación visual
+        showShakeNotification();
+
+        // Obtener ubicación y enviar alerta
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    // Obtener nivel de batería
+                    getBatteryLevel().then(batteryLevel => {
+                        enviarAlertaPanicoPorAgitacion(
+                            position.coords.latitude,
+                            position.coords.longitude,
+                            batteryLevel,
+                            { trigger: 'agitacion', sensibilidad: {{ perfil.sensibilidad_agitacion }} }
+                        );
+                    });
+                },
+                error => {
+                    console.error('❌ Error al obtener ubicación:', error);
+                    // Enviar alerta sin ubicación
+                    getBatteryLevel().then(batteryLevel => {
+                        enviarAlertaPanicoPorAgitacion(null, null, batteryLevel, { trigger: 'agitacion' });
+                    });
+                }
+            );
+        } else {
+            // Sin geolocalización, enviar alerta sin ubicación
+            getBatteryLevel().then(batteryLevel => {
+                enviarAlertaPanicoPorAgitacion(null, null, batteryLevel, { trigger: 'agitacion' });
+            });
+        }
+    }
+
+    function enviarAlertaPanicoPorAgitacion(latitud, longitud, bateria, datos_sensores) {
+        const alertData = {
+            latitud: latitud || 0,
+            longitud: longitud || 0,
+            bateria: bateria || 100,
+            datos_sensores: datos_sensores || {}
+        };
+
+        console.log('📤 Enviando alerta por agitación:', alertData);
+
+        fetch('{% url "crear_alerta_panico" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.RappiSafe.csrfToken
+            },
+            body: JSON.stringify(alertData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ Alerta por agitación enviada exitosamente');
+                console.log(`📱 Contactos notificados: ${data.contactos_notificados || 0}`);
+                // La notificación visual ya se mostró en showShakeNotification
+            } else {
+                console.error('❌ Error en respuesta:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error al enviar alerta por agitación:', error);
+        });
+    }
+
+    function showShakeNotification() {
+        // Crear notificación visual
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #dc2626;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(220, 38, 38, 0.4);
+            z-index: 9999;
+            font-weight: bold;
+            animation: slideDown 0.3s ease-out;
+        `;
+        notification.innerHTML = `
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            ¡Alerta de emergencia enviada!
+        `;
+        document.body.appendChild(notification);
+
+        // Vibrar si está disponible
+        if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200, 100, 200]);
+        }
+
+        // Remover después de 4 segundos
+        setTimeout(() => {
+            notification.style.animation = 'slideUp 0.3s ease-in';
+            setTimeout(() => notification.remove(), 300);
+        }, 4000);
+    }
+
+    async function getBatteryLevel() {
+        if (navigator.getBattery) {
+            try {
+                const battery = await navigator.getBattery();
+                return Math.round(battery.level * 100);
+            } catch (error) {
+                console.warn('⚠️ No se pudo obtener nivel de batería:', error);
+                return null;
+            }
+        }
+        return null;
+    }
+
+    // Agregar estilos de animación
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        @keyframes slideUp {
+            from {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+})();
+{% else %}
+console.log('❌ Detección de agitación DESACTIVADA en configuración');
+{% endif %}
+// ==================== FIN DETECCIÓN DE AGITACIÓN ====================
 
 console.log('✅ Aplicación cargada correctamente');
 </script>

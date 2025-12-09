@@ -24,9 +24,9 @@ class Command(BaseCommand):
                 rol='administrador',
                 telefono='+5215500000000'
             )
-            self.stdout.write(self.style.SUCCESS(f'✓ Superusuario creado: admin/admin123'))
+            self.stdout.write(self.style.SUCCESS(f'[OK] Superusuario creado: admin/admin123'))
         else:
-            self.stdout.write('⚠ Superusuario ya existe')
+            self.stdout.write('[!] Superusuario ya existe')
 
         # Crear repartidores de prueba
         repartidores_data = [
@@ -69,7 +69,7 @@ class Command(BaseCommand):
                     telefono=data['telefono']
                 )
                 repartidores.append(rep)
-                self.stdout.write(self.style.SUCCESS(f'✓ Repartidor creado: {data["username"]}/test123'))
+                self.stdout.write(self.style.SUCCESS(f'[OK] Repartidor creado: {data["username"]}/test123'))
 
                 # Crear contactos de confianza
                 ContactoConfianza.objects.create(
@@ -87,7 +87,7 @@ class Command(BaseCommand):
                     validado=False
                 )
             else:
-                self.stdout.write(f'⚠ Repartidor {data["username"]} ya existe')
+                self.stdout.write(f'[!] Repartidor {data["username"]} ya existe')
                 repartidores.append(User.objects.get(username=data['username']))
 
         # Crear operadores de prueba
@@ -118,9 +118,9 @@ class Command(BaseCommand):
                     last_name=data['last_name'],
                     rol='operador'
                 )
-                self.stdout.write(self.style.SUCCESS(f'✓ Operador creado: {data["username"]}/test123'))
+                self.stdout.write(self.style.SUCCESS(f'[OK] Operador creado: {data["username"]}/test123'))
             else:
-                self.stdout.write(f'⚠ Operador {data["username"]} ya existe')
+                self.stdout.write(f'[!] Operador {data["username"]} ya existe')
 
         # Crear administrador adicional
         if not User.objects.filter(username='admin1').exists():
@@ -133,9 +133,9 @@ class Command(BaseCommand):
                 rol='administrador',
                 is_staff=True
             )
-            self.stdout.write(self.style.SUCCESS('✓ Administrador creado: admin1/test123'))
+            self.stdout.write(self.style.SUCCESS('[OK] Administrador creado: admin1/test123'))
         else:
-            self.stdout.write('⚠ Administrador admin1 ya existe')
+            self.stdout.write('[!] Administrador admin1 ya existe')
 
         # Crear zonas de riesgo de ejemplo
         zonas_data = [
@@ -174,13 +174,13 @@ class Command(BaseCommand):
                     periodo_inicio=date.today() - timedelta(days=30),
                     periodo_fin=date.today()
                 )
-                self.stdout.write(self.style.SUCCESS(f'✓ Zona de riesgo creada: {zona["nombre"]}'))
+                self.stdout.write(self.style.SUCCESS(f'[OK] Zona de riesgo creada: {zona["nombre"]}'))
             else:
-                self.stdout.write(f'⚠ Zona {zona["nombre"]} ya existe')
+                self.stdout.write(f'[!] Zona {zona["nombre"]} ya existe')
 
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('=' * 60))
-        self.stdout.write(self.style.SUCCESS('✓ Datos de demostración creados exitosamente!'))
+        self.stdout.write(self.style.SUCCESS('[OK] Datos de demostracion creados exitosamente!'))
         self.stdout.write(self.style.SUCCESS('=' * 60))
         self.stdout.write('')
         self.stdout.write('Usuarios creados:')
