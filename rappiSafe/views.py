@@ -85,6 +85,11 @@ def es_administrador(user):
 
 # ==================== VISTAS REPARTIDOR ====================
 
+def test_sensores(request):
+    """Página de prueba de sensores GPS y movimiento (sin login)"""
+    return render(request, 'rappiSafe/test_sensores.html')
+
+
 @login_required
 @user_passes_test(es_repartidor, login_url='login')
 def repartidor_home(request):

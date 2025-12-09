@@ -10,6 +10,7 @@ urlpatterns = [
 
     # Repartidor
     path('repartidor/', views.repartidor_home, name='repartidor_home'),
+    path('test-sensores/', views.test_sensores, name='test_sensores'),
     path('repartidor/alerta/panico/', views.crear_alerta_panico, name='crear_alerta_panico'),
     path('repartidor/alerta/accidente/', views.crear_alerta_accidente, name='crear_alerta_accidente'),
     path('repartidor/alerta/<uuid:alerta_id>/cancelar/', views.cancelar_alerta, name='cancelar_alerta'),

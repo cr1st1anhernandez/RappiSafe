@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Sensores - RappiSafe</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+            background: #f3f4f6;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #dc2626;
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+        h2 {
+            color: #374151;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .sensor-data {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+        .info {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🧪 Test de Sensores</h1>
+            <p class="info">Verifica que tu teléfono tenga los permisos necesarios para RappiSafe</p>
+        </div>
+
+        <!-- GPS -->
+        <div class="card">
+            <h2>📍 Ubicación GPS</h2>
+            <div id="gps-status" class="status pending">⏳ Esperando prueba...</div>
+            <button onclick="testGPS()">Probar GPS</button>
+            <div id="gps-data" class="sensor-data" style="display:none;"></div>
+        </div>
+
+        <!-- Sensores de Movimiento -->
+        <div class="card">
+            <h2>📲 Sensores de Movimiento</h2>
+            <div id="motion-status" class="status pending">⏳ Esperando prueba...</div>
+            <button onclick="testMotion()">Activar Sensores</button>
+            <div id="motion-data" class="sensor-data" style="display:none;"></div>
+            <p class="info" style="margin-top: 12px;">
+                <strong>Cómo probar:</strong> Después de activar, agita tu teléfono y verás los valores cambiar.
+            </p>
+        </div>
+
+        <!-- Info del Navegador -->
+        <div class="card">
+            <h2>ℹ️ Información del Dispositivo</h2>
+            <div class="sensor-data">
+                <div><strong>Navegador:</strong> <span id="browser"></span></div>
+                <div><strong>Sistema:</strong> <span id="os"></span></div>
+                <div><strong>Es móvil:</strong> <span id="is-mobile"></span></div>
+                <div><strong>DeviceMotion:</strong> <span id="has-motion"></span></div>
+                <div><strong>Geolocation:</strong> <span id="has-geo"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Detectar navegador y sistema
+        const ua = navigator.userAgent;
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+
+        document.getElementById('browser').textContent =
+            ua.includes('Chrome') ? 'Chrome' :
+            ua.includes('Safari') ? 'Safari' :
+            ua.includes('Firefox') ? 'Firefox' : 'Otro';
+
+        document.getElementById('os').textContent =
+            ua.includes('Android') ? 'Android' :
+            ua.includes('iPhone') || ua.includes('iPad') ? 'iOS' :
+            ua.includes('Windows') ? 'Windows' : 'Otro';
+
+        document.getElementById('is-mobile').textContent = isMobile ? '✅ Sí' : '❌ No';
+        document.getElementById('has-motion').textContent = typeof DeviceMotionEvent !== 'undefined' ? '✅ Disponible' : '❌ No disponible';
+        document.getElementById('has-geo').textContent = 'geolocation' in navigator ? '✅ Disponible' : '❌ No disponible';
+
+        // Test GPS
+        function testGPS() {
+            const statusEl = document.getElementById('gps-status');
+            const dataEl = document.getElementById('gps-data');
+
+            statusEl.className = 'status pending';
+            statusEl.textContent = '⏳ Solicitando ubicación...';
+
+            if (!('geolocation' in navigator)) {
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ Tu navegador no soporta geolocalización';
+                return;
+            }
+
+            // Verificar permisos primero
+            if (navigator.permissions) {
+                navigator.permissions.query({name:'geolocation'}).then(function(result) {
+                    console.log('Estado del permiso de ubicación:', result.state);
+                    if (result.state === 'denied') {
+                        statusEl.className = 'status error';
+                        statusEl.innerHTML = '❌ Permiso BLOQUEADO<br><br>' +
+                            '<strong>Cómo desbloquear:</strong><br>' +
+                            '1. Toca el candado/ícono en la barra<br>' +
+                            '2. Cambia "Ubicación" a "Permitir"<br>' +
+                            '3. Recarga esta página';
+                        return;
+                    } else if (result.state === 'prompt') {
+                        statusEl.textContent = '⏳ El navegador debería preguntarte ahora...';
+                    }
+                });
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = '✅ GPS funcionando correctamente';
+                    dataEl.style.display = 'block';
+                    dataEl.innerHTML = `
+                        <div><strong>Latitud:</strong> ${position.coords.latitude.toFixed(6)}</div>
+                        <div><strong>Longitud:</strong> ${position.coords.longitude.toFixed(6)}</div>
+                        <div><strong>Precisión:</strong> ${position.coords.accuracy.toFixed(0)} metros</div>
+                    `;
+                },
+                (error) => {
+                    statusEl.className = 'status error';
+                    if (error.code === 1) {
+                        statusEl.textContent = '❌ Permiso denegado. Ve a configuración y permite la ubicación.';
+                    } else if (error.code === 2) {
+                        statusEl.textContent = '❌ Ubicación no disponible. Verifica GPS/WiFi.';
+                    } else if (error.code === 3) {
+                        statusEl.textContent = '❌ Timeout. Señal GPS débil.';
+                    } else {
+                        statusEl.textContent = `❌ Error: ${error.message}`;
+                    }
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        // Test Motion
+        let motionActive = false;
+        function testMotion() {
+            const statusEl = document.getElementById('motion-status');
+            const dataEl = document.getElementById('motion-data');
+
+            if (typeof DeviceMotionEvent === 'undefined') {
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ DeviceMotion no disponible en este dispositivo';
+                return;
+            }
+
+            // iOS 13+ requiere permiso
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                statusEl.className = 'status pending';
+                statusEl.textContent = '⏳ Solicitando permiso...';
+
+                DeviceMotionEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            startMotionDetection(statusEl, dataEl);
+                        } else {
+                            statusEl.className = 'status error';
+                            statusEl.textContent = '❌ Permiso denegado. Ve a Ajustes > Safari > Sensores de movimiento';
+                        }
+                    })
+                    .catch(error => {
+                        statusEl.className = 'status error';
+                        statusEl.textContent = `❌ Error: ${error.message}`;
+                    });
+            } else {
+                // Android y otros
+                startMotionDetection(statusEl, dataEl);
+            }
+        }
+
+        function startMotionDetection(statusEl, dataEl) {
+            if (motionActive) return;
+
+            motionActive = true;
+            statusEl.className = 'status success';
+            statusEl.textContent = '✅ Sensores activos - Agita tu teléfono';
+            dataEl.style.display = 'block';
+
+            window.addEventListener('devicemotion', (event) => {
+                if (!event.accelerationIncludingGravity) return;
+
+                const acc = event.accelerationIncludingGravity;
+                dataEl.innerHTML = `
+                    <div><strong>X:</strong> ${acc.x ? acc.x.toFixed(2) : 'N/A'}</div>
+                    <div><strong>Y:</strong> ${acc.y ? acc.y.toFixed(2) : 'N/A'}</div>
+                    <div><strong>Z:</strong> ${acc.z ? acc.z.toFixed(2) : 'N/A'}</div>
+                    <div style="margin-top:8px; color:#dc2626;"><strong>Agita el teléfono para ver los valores cambiar</strong></div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>

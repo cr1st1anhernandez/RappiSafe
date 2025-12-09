@@ -336,6 +336,19 @@
                 </button>
             </div>
 
+            <!-- Botón de activación de sensores (iOS) -->
+            <div id="sensor-activation" class="hidden bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4">
+                <h3 class="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                    <i class="fas fa-mobile-alt"></i>
+                    Sensores de Movimiento
+                </h3>
+                <p class="text-sm text-blue-700 mb-3">Para detectar agitaciones, activa los sensores de tu teléfono</p>
+                <button id="activate-sensors-btn" onclick="activateMotionSensors()"
+                        class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-hand-pointer mr-2"></i>Activar Sensores
+                </button>
+            </div>
+
             <!-- Navegación activa -->
             <div id="active-navigation" class="hidden bg-green-50 border-l-4 border-green-500 rounded-xl p-4">
                 <h3 class="font-bold text-green-900 mb-3 flex items-center gap-2">
@@ -1223,23 +1236,83 @@ function confirmCancelAlert() {
     });
 }
 
+// ==================== ACTIVACIÓN MANUAL DE SENSORES ====================
+function activateMotionSensors() {
+    console.log('👆 Usuario activando sensores manualmente...');
+
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission()
+            .then(permissionState => {
+                if (permissionState === 'granted') {
+                    console.log('✅ Permiso de sensor de movimiento concedido');
+                    document.getElementById('sensor-activation').classList.add('hidden');
+                    startShakeDetection();
+                } else {
+                    console.warn('⚠️ Permiso de sensor de movimiento denegado');
+                    alert('Se requiere permiso para usar los sensores de movimiento.\n\nVe a Ajustes > Safari > Sensores de Movimiento y Orientación y actívalo.');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error al solicitar permiso:', error);
+                alert('Error al solicitar permiso: ' + error.message);
+            });
+    } else {
+        // Android y otros - no necesitan permiso explícito
+        console.log('✅ Sensores activados (no requiere permiso explícito)');
+        document.getElementById('sensor-activation').classList.add('hidden');
+        startShakeDetection();
+    }
+}
+
 // ==================== DETECCIÓN DE AGITACIÓN ====================
 {% if perfil.agitacion_habilitada %}
+// Variables globales de detección
+let lastAcceleration = { x: 0, y: 0, z: 0 };
+let lastTime = Date.now();
+let shakeCount = 0;
+let shakeTimeout = null;
+const SHAKE_THRESHOLD = {{ perfil.sensibilidad_agitacion }};  // Umbral configurable
+const SHAKE_TIME_WINDOW = 500; // ms para contar agitaciones
+const REQUIRED_SHAKES = 3; // Número de agitaciones necesarias
+const COOLDOWN_TIME = 5000; // 5 segundos de cooldown después de enviar alerta
+let lastShakeAlert = 0;
+let isShaking = false;
+let shakeDetectionActive = false;
+
+// Función global para iniciar detección de agitación
+function startShakeDetection() {
+    if (shakeDetectionActive) {
+        console.log('⚠️ Detección de agitación ya está activa');
+        return;
+    }
+
+    shakeDetectionActive = true;
+    window.addEventListener('devicemotion', handleMotion, true);
+    console.log('👂 Escuchando eventos de movimiento...');
+
+    // Mostrar notificación de éxito
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #16a34a;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 9999;
+        font-size: 14px;
+    `;
+    notification.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Sensores activados - Agita tu teléfono en emergencia';
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
 (function() {
     console.log('📱 Detección de agitación ACTIVADA');
     console.log('🎚️ Sensibilidad configurada: {{ perfil.sensibilidad_agitacion }}');
-
-    // Variables de detección
-    let lastAcceleration = { x: 0, y: 0, z: 0 };
-    let lastTime = Date.now();
-    let shakeCount = 0;
-    let shakeTimeout = null;
-    const SHAKE_THRESHOLD = {{ perfil.sensibilidad_agitacion }};  // Umbral configurable
-    const SHAKE_TIME_WINDOW = 500; // ms para contar agitaciones
-    const REQUIRED_SHAKES = 3; // Número de agitaciones necesarias
-    const COOLDOWN_TIME = 5000; // 5 segundos de cooldown después de enviar alerta
-    let lastShakeAlert = 0;
-    let isShaking = false;
 
     // Detectar si es dispositivo móvil
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -1254,28 +1327,14 @@ function confirmCancelAlert() {
         return;
     }
 
-    // Solicitar permisos en iOS 13+
+    // iOS 13+ requiere activación manual desde un botón
     if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        DeviceMotionEvent.requestPermission()
-            .then(permissionState => {
-                if (permissionState === 'granted') {
-                    console.log('✅ Permiso de sensor de movimiento concedido');
-                    startShakeDetection();
-                } else {
-                    console.warn('⚠️ Permiso de sensor de movimiento denegado');
-                }
-            })
-            .catch(error => {
-                console.error('❌ Error al solicitar permiso:', error);
-            });
+        console.log('📱 iOS detectado - Mostrando botón de activación manual');
+        document.getElementById('sensor-activation').classList.remove('hidden');
     } else {
-        // No necesita permisos en Android y otros dispositivos
+        // Android y otros: activar automáticamente
+        console.log('🤖 Android/Otro detectado - Activando sensores automáticamente');
         startShakeDetection();
-    }
-
-    function startShakeDetection() {
-        window.addEventListener('devicemotion', handleMotion, true);
-        console.log('👂 Escuchando eventos de movimiento...');
     }
 
     function handleMotion(event) {
