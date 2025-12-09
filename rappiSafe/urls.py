@@ -17,6 +17,7 @@ urlpatterns = [
     path('repartidor/bateria/', views.actualizar_bateria, name='actualizar_bateria'),
     path('repartidor/contactos/', views.contactos_confianza_view, name='contactos_confianza'),
     path('repartidor/contactos/agregar/', views.agregar_contacto, name='agregar_contacto'),
+    path('repartidor/contactos/validar/<int:contacto_id>/', views.validar_contacto, name='validar_contacto'),
     path('repartidor/contactos/eliminar/<int:contacto_id>/', views.eliminar_contacto, name='eliminar_contacto'),
     path('repartidor/ayuda-psicologica/', views.solicitar_ayuda_psicologica_view, name='solicitar_ayuda_psicologica'),
     path('repartidor/mi-perfil/', views.mi_perfil_view, name='mi_perfil'),

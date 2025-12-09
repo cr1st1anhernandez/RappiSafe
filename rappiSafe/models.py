@@ -143,6 +143,11 @@ class ContactoConfianza(models.Model):
     )
     telefono = models.CharField(validators=[telefono_regex], max_length=17, verbose_name='Teléfono')
     relacion = models.CharField(max_length=50, blank=True, verbose_name='Relación')
+
+    # Métodos alternativos de contacto (más confiables que SMS)
+    telegram_id = models.CharField(max_length=50, blank=True, verbose_name='ID de Telegram', help_text='Obtenlo hablando con @userinfobot en Telegram')
+    email = models.EmailField(blank=True, verbose_name='Email', help_text='Email para recibir alertas')
+
     validado = models.BooleanField(default=False, verbose_name='Validado')
     creado_en = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
 
@@ -153,6 +158,15 @@ class ContactoConfianza(models.Model):
 
     def __str__(self):
         return f"{self.nombre} - {self.telefono}"
+
+    def metodo_preferido(self):
+        """Retorna el mejor método de contacto disponible"""
+        if self.telegram_id:
+            return 'telegram'
+        elif self.email:
+            return 'email'
+        else:
+            return 'telefono'
 
 
 class Incidente(models.Model):

@@ -315,7 +315,10 @@ def agregar_contacto(request):
             repartidor=request.user,
             nombre=data.get('nombre'),
             telefono=data.get('telefono'),
-            relacion=data.get('relacion', '')
+            relacion=data.get('relacion', ''),
+            telegram_id=data.get('telegram_id', ''),
+            email=data.get('email', ''),
+            validado=True  # Marcar como validado automáticamente
         )
 
         return JsonResponse({
@@ -329,6 +332,32 @@ def agregar_contacto(request):
                 'validado': contacto.validado
             }
         })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
+
+
+@login_required
+@user_passes_test(es_repartidor)
+@require_POST
+def validar_contacto(request, contacto_id):
+    """Validar un contacto de confianza"""
+    try:
+        contacto = ContactoConfianza.objects.get(id=contacto_id, repartidor=request.user)
+        contacto.validado = True
+        contacto.save()
+
+        return JsonResponse({
+            'success': True,
+            'mensaje': 'Contacto validado exitosamente'
+        })
+    except ContactoConfianza.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Contacto no encontrado'
+        }, status=404)
     except Exception as e:
         return JsonResponse({
             'success': False,
