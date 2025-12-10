@@ -18,10 +18,10 @@ class User(AbstractUser):
     rol = models.CharField(max_length=20, choices=ROLES, default='repartidor', verbose_name='Rol')
     activo = models.BooleanField(default=True, verbose_name='Activo')
     telefono_regex = RegexValidator(
-        regex=r'^\+?1?\d{9,15}$',
-        message="El número telefónico debe estar en formato: '+999999999'. Hasta 15 dígitos permitidos."
+        regex=r'^\+?[\d\s\-\(\)]{10,20}$',
+        message="El número telefónico debe contener entre 10 y 20 dígitos."
     )
-    telefono = models.CharField(validators=[telefono_regex], max_length=17, blank=True, verbose_name='Teléfono')
+    telefono = models.CharField(validators=[telefono_regex], max_length=20, blank=True, null=True, verbose_name='Teléfono')
 
     class Meta:
         verbose_name = 'Usuario'

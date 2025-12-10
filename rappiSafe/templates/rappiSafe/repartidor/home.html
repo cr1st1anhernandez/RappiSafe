@@ -240,7 +240,7 @@
     <div class="side-panel">
         <div class="p-6 space-y-6">
             <!-- Estado del usuario -->
-            <div class="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-4">
+            <div class="bg-gray-100 rounded-xl p-4">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="font-bold text-gray-900">{{ user.first_name|default:user.username }}</h3>
                     <div id="status-badge" class="badge badge-warning">
@@ -279,35 +279,94 @@
                     </button>
                 </div>
                 <p id="sos-instruction" class="text-sm text-gray-500 mt-4">
-                    Mantén presionado 3s para activar
+                    Mantén presionado 3s para activar o agita tu dispositivo 3 veces
                 </p>
                 <p id="sos-status" class="text-xs text-gray-400 mt-2">
                     Requiere ruta activa
                 </p>
             </div>
 
-            <!-- Alertas activas -->
+            <!-- Alerta activa (solo una) -->
             {% if alertas_activas %}
             <div class="bg-red-50 border-l-4 border-red-500 rounded-xl p-4">
                 <div class="flex items-start gap-3">
                     <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
                     <div class="flex-1">
                         <h4 class="font-bold text-red-900 mb-2">Alerta Activa</h4>
-                        {% for alerta in alertas_activas %}
-                        <div class="bg-white rounded-lg p-3 mb-2">
+                        <div class="bg-white rounded-lg p-3">
                             <div class="flex justify-between items-center mb-1">
-                                <span class="font-medium text-sm">{{ alerta.get_tipo_display }}</span>
-                                <span class="badge badge-danger">{{ alerta.get_estado_display }}</span>
+                                <span class="font-medium text-sm">{{ alertas_activas.0.get_tipo_display }}</span>
+                                <span class="badge badge-danger">{{ alertas_activas.0.get_estado_display }}</span>
                             </div>
-                            <p class="text-xs text-gray-500">{{ alerta.creado_en|date:"d/m/Y H:i" }}</p>
-                            {% if alerta.estado == 'pendiente' %}
-                            <button onclick="cancelarAlerta('{{ alerta.id }}')"
+                            <p class="text-xs text-gray-500">{{ alertas_activas.0.creado_en|date:"d/m/Y H:i" }}</p>
+                            {% if alertas_activas.0.estado == 'pendiente' %}
+                            <button onclick="cancelarAlerta('{{ alertas_activas.0.id }}')"
                                     class="text-xs text-red-600 hover:text-red-700 font-medium mt-2">
                                 Cancelar alerta
                             </button>
                             {% endif %}
                         </div>
-                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Zonas de Riesgo Cercanas -->
+            {% if zonas_riesgo_cercanas %}
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-exclamation-triangle text-yellow-600 text-xl"></i>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-yellow-900 mb-3">Zonas de Riesgo Cercanas</h4>
+                        <div class="space-y-2">
+                            {% for item in zonas_riesgo_cercanas %}
+                            <div class="bg-white rounded-lg p-3">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="flex-1">
+                                        <p class="font-medium text-sm text-gray-900">{{ item.zona.nombre_zona }}</p>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <span class="text-xs text-gray-500">
+                                                <i class="fas fa-map-marker-alt"></i> {{ item.distancia }} km
+                                            </span>
+                                            <span class="text-xs text-gray-500">
+                                                <i class="fas fa-exclamation-circle"></i> {{ item.zona.total_alertas }} alertas
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {% if item.zona.puntuacion_riesgo >= 7 %}
+                                    <span class="badge badge-danger">
+                                        Riesgo: {{ item.zona.puntuacion_riesgo|floatformat:0 }}
+                                    </span>
+                                    {% elif item.zona.puntuacion_riesgo >= 5 %}
+                                    <span class="badge badge-warning">
+                                        Riesgo: {{ item.zona.puntuacion_riesgo|floatformat:0 }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge badge-success">
+                                        Riesgo: {{ item.zona.puntuacion_riesgo|floatformat:0 }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex gap-2 text-xs text-gray-600">
+                                    <span><i class="fas fa-hand-paper text-orange-500"></i> {{ item.zona.alertas_panico }}</span>
+                                    <span><i class="fas fa-car-crash text-yellow-500"></i> {{ item.zona.alertas_accidente }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <p class="text-xs text-yellow-700 mt-3">
+                            <i class="fas fa-info-circle"></i> Ten precaución al transitar por estas zonas
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% elif perfil.ultima_latitud and perfil.ultima_longitud %}
+            <div class="bg-green-50 border-l-4 border-green-500 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-green-900 mb-2">Zona Segura</h4>
+                        <p class="text-sm text-green-700">No hay zonas de alto riesgo cerca de tu ubicación actual</p>
                     </div>
                 </div>
             </div>
@@ -347,44 +406,6 @@
                         disabled>
                     <i class="fas fa-play mr-2"></i>Iniciar Navegación
                 </button>
-            </div>
-
-            <!-- Botón de activación de sensores (iOS) -->
-            <div id="sensor-activation" class="hidden bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4">
-                <h3 class="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                    <i class="fas fa-mobile-alt"></i>
-                    Sensores de Movimiento
-                </h3>
-                <p class="text-sm text-blue-700 mb-3">Para detectar agitaciones, activa los sensores de tu teléfono</p>
-                <button id="activate-sensors-btn" onclick="activateMotionSensors()"
-                        class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-hand-pointer mr-2"></i>Activar Sensores
-                </button>
-            </div>
-
-            <!-- Indicador de sensor (para debugging) -->
-            <div id="sensor-status" class="hidden bg-gray-50 rounded-xl p-4">
-                <h3 class="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                    <i class="fas fa-wave-square"></i>
-                    Estado del Sensor
-                </h3>
-                <div class="space-y-2 text-sm">
-                    <div class="flex justify-between">
-                        <span>Eventos:</span>
-                        <span id="event-count" class="font-mono font-bold">0</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Delta máximo:</span>
-                        <span id="max-delta" class="font-mono font-bold">0</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Sacudidas:</span>
-                        <span id="shake-count-display" class="font-mono font-bold">0/3</span>
-                    </div>
-                    <div id="shake-indicator" class="w-full h-2 bg-gray-300 rounded-full overflow-hidden">
-                        <div id="shake-bar" class="h-full bg-green-500 transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                </div>
             </div>
 
             <!-- Navegación activa -->
@@ -1182,10 +1203,14 @@ function activateSOS() {
         })
         .then(response => {
             console.log('📥 Respuesta recibida:', response.status);
-            if (!response.ok) {
-                throw new Error(`Error HTTP ${response.status}`);
-            }
-            return response.json();
+            // Siempre parsear JSON para obtener el mensaje de error
+            return response.json().then(data => {
+                if (!response.ok) {
+                    // Lanzar el error con el mensaje del backend
+                    throw new Error(data.error || `Error HTTP ${response.status}`);
+                }
+                return data;
+            });
         })
         .then(data => {
             console.log('📊 Datos de respuesta:', data);
@@ -1232,7 +1257,7 @@ function activateSOS() {
             document.getElementById('sos-instruction').textContent = 'Error al enviar';
             document.getElementById('sos-instruction').className = 'text-sm text-red-600 mt-4';
 
-            alert('Error al enviar alerta SOS: ' + error.message + '\n\nIntenta nuevamente o contacta con soporte.');
+            alert('Error al enviar alerta SOS:\n\n' + error.message);
 
             // Resetear estado
             sosActivating = false;
@@ -1240,7 +1265,7 @@ function activateSOS() {
             progressRing.classList.add('hidden');
 
             setTimeout(() => {
-                document.getElementById('sos-instruction').textContent = 'Mantén presionado 3s para activar';
+                document.getElementById('sos-instruction').textContent = 'Mantén presionado 3s para activar o agita tu dispositivo 3 veces';
                 document.getElementById('sos-instruction').className = 'text-sm text-gray-500 mt-4';
             }, 3000);
         });
@@ -1326,34 +1351,6 @@ function confirmCancelAlert() {
     });
 }
 
-// ==================== ACTIVACIÓN MANUAL DE SENSORES ====================
-function activateMotionSensors() {
-    console.log('👆 Usuario activando sensores manualmente...');
-
-    if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        DeviceMotionEvent.requestPermission()
-            .then(permissionState => {
-                if (permissionState === 'granted') {
-                    console.log('✅ Permiso de sensor de movimiento concedido');
-                    document.getElementById('sensor-activation').classList.add('hidden');
-                    startShakeDetection();
-                } else {
-                    console.warn('⚠️ Permiso de sensor de movimiento denegado');
-                    alert('Se requiere permiso para usar los sensores de movimiento.\n\nVe a Ajustes > Safari > Sensores de Movimiento y Orientación y actívalo.');
-                }
-            })
-            .catch(error => {
-                console.error('❌ Error al solicitar permiso:', error);
-                alert('Error al solicitar permiso: ' + error.message);
-            });
-    } else {
-        // Android y otros - no necesitan permiso explícito
-        console.log('✅ Sensores activados (no requiere permiso explícito)');
-        document.getElementById('sensor-activation').classList.add('hidden');
-        startShakeDetection();
-    }
-}
-
 // ==================== DETECCIÓN DE AGITACIÓN ====================
 {% if perfil.agitacion_habilitada %}
 // Variables globales de detección
@@ -1367,9 +1364,11 @@ let lastZ = null;
 let motionEventCount = 0;
 
 // Configuración de detección
-const SHAKE_THRESHOLD = Math.max(15, {{ perfil.sensibilidad_agitacion }} || 20);  // Umbral más sensible
+// Invertir la sensibilidad: valor más alto = más sensible
+const sensibilidadConfig = {{ perfil.sensibilidad_agitacion }} || 15;
+const SHAKE_THRESHOLD = Math.max(10, 35 - sensibilidadConfig);  // 10 es muy sensible, 35 es poco sensible
 const SHAKE_REQUIRED_COUNT = 3;  // Número de sacudidas necesarias
-const SHAKE_TIME_WINDOW = 1000;  // 1 segundo para completar las sacudidas
+const SHAKE_TIME_WINDOW = 1500;  // 1.5 segundos para completar las sacudidas
 const COOLDOWN_TIME = 5000;  // 5 segundos entre alertas
 
 console.log('🎚️ Configuración de sensores:');
@@ -1381,14 +1380,8 @@ console.log(`   - Ventana de tiempo: ${SHAKE_TIME_WINDOW}ms`);
 function handleMotion(event) {
     motionEventCount++;
 
-    // Actualizar UI cada 10 eventos
-    if (motionEventCount % 10 === 0) {
-        const eventCountEl = document.getElementById('event-count');
-        if (eventCountEl) eventCountEl.textContent = motionEventCount;
-    }
-
-    // Log cada 50 eventos para confirmar que está funcionando
-    if (motionEventCount % 50 === 0) {
+    // Log cada 100 eventos para confirmar que está funcionando
+    if (motionEventCount % 100 === 0) {
         console.log(`✅ Sensor activo - ${motionEventCount} eventos recibidos`);
     }
 
@@ -1427,34 +1420,8 @@ function handleMotion(event) {
     // Usar el cambio máximo en cualquier eje
     const maxDelta = Math.max(deltaX, deltaY, deltaZ);
 
-    // Actualizar UI con delta
-    const maxDeltaEl = document.getElementById('max-delta');
-    if (maxDeltaEl) {
-        maxDeltaEl.textContent = maxDelta.toFixed(1);
-        // Cambiar color según intensidad
-        if (maxDelta > SHAKE_THRESHOLD) {
-            maxDeltaEl.className = 'font-mono font-bold text-red-600';
-        } else if (maxDelta > SHAKE_THRESHOLD * 0.5) {
-            maxDeltaEl.className = 'font-mono font-bold text-yellow-600';
-        } else {
-            maxDeltaEl.className = 'font-mono font-bold text-gray-900';
-        }
-    }
-
-    // Actualizar barra de progreso
-    const shakeBar = document.getElementById('shake-bar');
-    if (shakeBar) {
-        const percentage = Math.min(100, (maxDelta / SHAKE_THRESHOLD) * 100);
-        shakeBar.style.width = percentage + '%';
-        if (maxDelta > SHAKE_THRESHOLD) {
-            shakeBar.style.backgroundColor = '#ef4444'; // red
-        } else {
-            shakeBar.style.backgroundColor = '#22c55e'; // green
-        }
-    }
-
-    // Log cada 2 segundos para ver valores
-    if (motionEventCount % 100 === 0) {
+    // Log cada 200 eventos para ver valores
+    if (motionEventCount % 200 === 0) {
         console.log(`📊 Delta actual: ${maxDelta.toFixed(2)} (umbral: ${SHAKE_THRESHOLD})`);
     }
 
@@ -1475,13 +1442,6 @@ function handleMotion(event) {
 
         shakeCount++;
 
-        // Actualizar UI de contador
-        const shakeCountDisplay = document.getElementById('shake-count-display');
-        if (shakeCountDisplay) {
-            shakeCountDisplay.textContent = `${shakeCount}/${SHAKE_REQUIRED_COUNT}`;
-            shakeCountDisplay.className = 'font-mono font-bold text-red-600';
-        }
-
         // Limpiar timer anterior
         if (shakeResetTimer) {
             clearTimeout(shakeResetTimer);
@@ -1493,24 +1453,11 @@ function handleMotion(event) {
             triggerShakeAlert();
             shakeCount = 0;
             lastShakeTime = currentTime;
-
-            // Resetear UI
-            if (shakeCountDisplay) {
-                shakeCountDisplay.textContent = '0/3';
-                shakeCountDisplay.className = 'font-mono font-bold text-gray-900';
-            }
         } else {
             // Resetear contador después de la ventana de tiempo
             shakeResetTimer = setTimeout(() => {
                 console.log(`⏱️ Tiempo agotado - Reset (había ${shakeCount} sacudidas)`);
                 shakeCount = 0;
-
-                // Resetear UI
-                const shakeCountDisplay = document.getElementById('shake-count-display');
-                if (shakeCountDisplay) {
-                    shakeCountDisplay.textContent = '0/3';
-                    shakeCountDisplay.className = 'font-mono font-bold text-gray-900';
-                }
             }, SHAKE_TIME_WINDOW);
         }
     }
@@ -1523,6 +1470,38 @@ function handleMotion(event) {
 
 function triggerShakeAlert() {
     console.log('🚨 Disparando alerta de pánico por agitación');
+
+    // Verificar que haya una ruta activa
+    if (!navigationActive) {
+        console.warn('⚠️ No se puede activar alerta por agitación sin ruta activa');
+
+        // Mostrar notificación de advertencia
+        const warningNotif = document.createElement('div');
+        warningNotif.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #f59e0b;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(245, 158, 11, 0.4);
+            z-index: 10000;
+            font-weight: bold;
+            animation: slideDown 0.3s ease-out;
+        `;
+        warningNotif.innerHTML = `
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Debes iniciar una ruta para activar alertas
+        `;
+        document.body.appendChild(warningNotif);
+        setTimeout(() => warningNotif.remove(), 3000);
+
+        // Resetear contador de agitación
+        shakeCount = 0;
+        return;
+    }
 
     // Mostrar notificación visual
     showShakeNotification();
@@ -1648,10 +1627,14 @@ function enviarAlertaPanicoPorAgitacion(latitud, longitud, bateria, datos_sensor
     })
     .then(response => {
         console.log('📥 Respuesta del servidor recibida:', response.status);
-        if (!response.ok) {
-            throw new Error(`Error HTTP ${response.status}`);
-        }
-        return response.json();
+        // Siempre parsear JSON para obtener el mensaje de error
+        return response.json().then(data => {
+            if (!response.ok) {
+                // Lanzar el error con el mensaje del backend
+                throw new Error(data.error || `Error HTTP ${response.status}`);
+            }
+            return data;
+        });
     })
     .then(data => {
         console.log('📊 Datos de respuesta:', data);
@@ -1763,7 +1746,8 @@ function enviarAlertaPanicoPorAgitacion(latitud, longitud, bateria, datos_sensor
         `;
         document.body.appendChild(errorNotif);
 
-        alert('❌ Error al enviar alerta SOS:\n\n' + error.message + '\n\nIntenta nuevamente o contacta con soporte.');
+        // Mostrar el mensaje de error del backend
+        alert('❌ Error al enviar alerta SOS:\n\n' + error.message);
 
         setTimeout(() => errorNotif.remove(), 5000);
     });
@@ -1934,36 +1918,10 @@ function startShakeDetection() {
     motionEventCount = 0;
     shakeCount = 0;
 
-    // Mostrar indicador de estado del sensor
-    const sensorStatus = document.getElementById('sensor-status');
-    if (sensorStatus) {
-        sensorStatus.classList.remove('hidden');
-    }
-
     // Agregar listener
     window.addEventListener('devicemotion', handleMotion, true);
     console.log('👂 Listener agregado - Escuchando eventos de movimiento...');
-    console.log('📱 AGITA EL TELÉFONO PARA PROBAR');
-
-    // Mostrar notificación de éxito
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 80px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #16a34a;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        z-index: 9999;
-        font-size: 14px;
-        font-weight: bold;
-    `;
-    notification.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Sensores activados - Agita 3 veces para probar';
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 4000);
+    console.log('📱 Sensor de agitación activo (requiere ruta activa para alertas)');
 
     // Verificar después de 3 segundos si está recibiendo eventos
     setTimeout(() => {
@@ -1973,24 +1931,6 @@ function startShakeDetection() {
             console.error('   - Permisos no concedidos');
             console.error('   - Sensor no disponible en el dispositivo');
             console.error('   - Navegador no soporta DeviceMotion');
-
-            const errorNotif = document.createElement('div');
-            errorNotif.style.cssText = `
-                position: fixed;
-                top: 80px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: #dc2626;
-                color: white;
-                padding: 12px 20px;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-                z-index: 9999;
-                font-size: 14px;
-            `;
-            errorNotif.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>Sensor no disponible';
-            document.body.appendChild(errorNotif);
-            setTimeout(() => errorNotif.remove(), 4000);
         } else {
             console.log(`✅ Sensor funcionando correctamente (${motionEventCount} eventos)`);
         }
@@ -2043,10 +1983,34 @@ function startShakeDetection() {
         return;
     }
 
-    // iOS 13+ requiere activación manual desde un botón
+    // iOS 13+ - Intentar solicitar permiso automáticamente cuando el usuario inicia ruta
     if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        console.log('📱 iOS detectado - Mostrando botón de activación manual');
-        document.getElementById('sensor-activation').classList.remove('hidden');
+        console.log('📱 iOS detectado - Sensores se activarán al iniciar ruta');
+
+        // Agregar listener al botón de iniciar ruta para solicitar permiso
+        const startRouteBtn = document.getElementById('start-route-btn');
+        if (startRouteBtn) {
+            const originalStartNavigation = window.startNavigation;
+            window.startNavigation = function() {
+                // Solicitar permiso de sensores si no se ha hecho
+                if (!shakeDetectionActive) {
+                    DeviceMotionEvent.requestPermission()
+                        .then(permissionState => {
+                            if (permissionState === 'granted') {
+                                console.log('✅ Permiso de sensor concedido');
+                                startShakeDetection();
+                            } else {
+                                console.warn('⚠️ Permiso de sensor denegado');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('❌ Error al solicitar permiso:', error);
+                        });
+                }
+                // Llamar a la función original
+                originalStartNavigation();
+            };
+        }
     } else {
         // Android y otros: activar automáticamente
         console.log('🤖 Android/Otro detectado - Activando sensores automáticamente');

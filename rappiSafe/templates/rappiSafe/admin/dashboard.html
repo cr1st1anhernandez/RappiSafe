@@ -100,7 +100,15 @@
             <div class="text-center py-6">
                 <i class="fas fa-user-cog text-5xl text-blue-600 mb-4"></i>
                 <h3 class="text-xl font-bold text-gray-800">Gestionar Usuarios</h3>
-                <p class="text-gray-600 text-sm mt-2">Crear, editar y administrar usuarios</p>
+                <p class="text-gray-600 text-sm mt-2">Ver y administrar usuarios</p>
+            </div>
+        </a>
+
+        <a href="{% url 'crear_operador' %}" class="card hover:shadow-lg transition-shadow">
+            <div class="text-center py-6">
+                <i class="fas fa-user-plus text-5xl text-purple-600 mb-4"></i>
+                <h3 class="text-xl font-bold text-gray-800">Crear Operador</h3>
+                <p class="text-gray-600 text-sm mt-2">Agregar nuevos operadores al sistema</p>
             </div>
         </a>
 
@@ -109,14 +117,6 @@
                 <i class="fas fa-chart-bar text-5xl text-green-600 mb-4"></i>
                 <h3 class="text-xl font-bold text-gray-800">Estadísticas</h3>
                 <p class="text-gray-600 text-sm mt-2">Ver reportes y análisis del sistema</p>
-            </div>
-        </a>
-
-        <a href="/admin/" class="card hover:shadow-lg transition-shadow">
-            <div class="text-center py-6">
-                <i class="fas fa-cogs text-5xl text-purple-600 mb-4"></i>
-                <h3 class="text-xl font-bold text-gray-800">Django Admin</h3>
-                <p class="text-gray-600 text-sm mt-2">Acceder al panel de administración de Django</p>
             </div>
         </a>
     </div>

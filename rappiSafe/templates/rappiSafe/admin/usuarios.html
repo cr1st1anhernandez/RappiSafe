@@ -127,9 +127,9 @@
                         {{ usuario.date_joined|date:"d/m/Y" }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <a href="/admin/rappiSafe/user/{{ usuario.id }}/change/" class="text-rappi-red hover:text-rappi-red-700 mr-3">
-                            Editar
-                        </a>
+                        <span class="text-gray-400 text-xs">
+                            {{ usuario.get_rol_display }}
+                        </span>
                     </td>
                 </tr>
                 {% empty %}
