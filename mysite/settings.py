@@ -178,4 +178,5 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://*.ngrok-free.app",
+    "https://*.ngrok-free.dev",
 ]
