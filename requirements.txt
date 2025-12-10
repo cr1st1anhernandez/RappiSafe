@@ -24,5 +24,8 @@ phonenumbers==8.13.27
 # Para notificaciones (SMS alternativo)
 python-telegram-bot>=20.0
 
+# Para envío de SMS con MoceanAPI
+moceansdk==1.2.0
+
 # Para desarrollo
 django-debug-toolbar==4.2.0

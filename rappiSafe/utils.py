@@ -304,11 +304,12 @@ def notificar_contactos_emergencia(alerta):
 
         # Mensaje base
         mensaje = f"""
-🚨 ALERTA DE {tipo_alerta} - RAPPI SAFE
+!!! ALERTA DE {tipo_alerta} - RAPPI SAFE !!!
 
 {repartidor_nombre} ha activado una alerta de emergencia.
 
-📍 Ubicación: https://www.google.com/maps?q={alerta.latitud},{alerta.longitud}
+Ubicación: 
+https://www.google.com/maps?q={alerta.latitud},{alerta.longitud}
 
 Hora: {timezone.now().strftime('%d/%m/%Y %H:%M')}
 
@@ -321,15 +322,15 @@ Este mensaje es automático. Por favor, contacte inmediatamente con {repartidor_
 
         for contacto in contactos:
             try:
-                # Enviar notificación (Telegram > Email > Simulado)
+                # Enviar notificación SMS con MoceanAPI
                 resultado_envio = enviar_notificacion_contacto(contacto, mensaje)
-                metodo = resultado_envio.get('metodo', 'desconocido')
+                metodo = resultado_envio.get('metodo', 'sms')
 
                 # Registrar notificación en base de datos
                 notificacion = NotificacionContacto.objects.create(
                     alerta=alerta,
                     contacto=contacto,
-                    metodo=metodo if metodo in ['telegram', 'email', 'sms', 'whatsapp', 'llamada'] else 'sms',
+                    metodo='sms',
                     estado='enviado' if resultado_envio['success'] else 'fallido',
                     mensaje=mensaje,
                     respuesta_api=resultado_envio.get('respuesta'),
@@ -338,8 +339,7 @@ Este mensaje es automático. Por favor, contacte inmediatamente con {repartidor_
 
                 if resultado_envio['success']:
                     contactos_notificados += 1
-                    metodo_str = metodo.upper() if metodo != 'simulado' else 'SIMULADO'
-                    print(f"✅ Notificación enviada a {contacto.nombre} via {metodo_str}")
+                    print(f"✅ SMS enviado a {contacto.nombre} ({contacto.telefono})")
                     detalles.append({
                         'contacto': contacto.nombre,
                         'metodo': metodo,
@@ -506,10 +506,99 @@ def enviar_email(email, asunto, mensaje):
         }
 
 
+def enviar_sms_mocean(telefono, mensaje):
+    """
+    Enviar SMS usando MoceanAPI
+
+    Args:
+        telefono: Número de teléfono del contacto (formato internacional, ej: 60123456789)
+        mensaje: Texto del mensaje a enviar
+
+    Returns:
+        dict: {'success': bool, 'respuesta': dict, 'error': str}
+    """
+    import os
+
+    # Obtener el token de API desde variables de entorno
+    api_token = os.environ.get('MOCEAN_API_TOKEN')
+
+    if not api_token:
+        return {
+            'success': False,
+            'error': 'No hay token de MoceanAPI configurado'
+        }
+
+    try:
+        from moceansdk import Client, Basic
+
+        print(f"📱 Enviando SMS por MOCEAN a {telefono}")
+        print(f"   Mensaje: {mensaje[:50]}...")
+
+        # Limpiar el número de teléfono (remover espacios, guiones, etc.)
+        telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
+
+        # Si el número empieza con +, hay que removerlo
+        if str(telefono).startswith('+'):
+            telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
+
+        # Inicializar cliente de Mocean
+        mocean = Client(Basic(api_token=api_token))
+
+        # Enviar SMS
+        res = mocean.sms.create({
+            "mocean-from": "RAPPI SAFE",
+            "mocean-to": telefono_limpio,
+            "mocean-text": mensaje
+        }).send()
+
+        # Verificar respuesta
+        if res and 'messages' in res:
+            messages = res['messages']
+            if messages and len(messages) > 0:
+                status = messages[0].get('status')
+
+                # Status 0 = éxito
+                if status == 0:
+                    print(f"✅ SMS enviado exitosamente!")
+                    print(f"   Message ID: {messages[0].get('msgid')}")
+                    print(f"   Receptor: {messages[0].get('receiver')}")
+
+                    return {
+                        'success': True,
+                        'respuesta': {
+                            'telefono': telefono_limpio,
+                            'msgid': messages[0].get('msgid'),
+                            'receiver': messages[0].get('receiver'),
+                            'proveedor': 'mocean',
+                            'real': True
+                        }
+                    }
+                else:
+                    error_msg = messages[0].get('err_msg', 'Error desconocido')
+                    print(f"❌ Error al enviar SMS: {error_msg}")
+                    return {
+                        'success': False,
+                        'error': f"Error Mocean: {error_msg}"
+                    }
+
+        # Si no hay respuesta válida
+        print(f"❌ Respuesta inválida de MoceanAPI")
+        return {
+            'success': False,
+            'error': 'Respuesta inválida de MoceanAPI'
+        }
+
+    except Exception as e:
+        print(f"❌ Excepción al enviar SMS: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Error SMS: {str(e)}"
+        }
+
+
 def enviar_notificacion_contacto(contacto, mensaje):
     """
-    Enviar notificación a un contacto por TODOS los métodos disponibles
-    Envía por Telegram, Email, y cualquier otro canal configurado
+    Enviar notificación SMS a un contacto usando MoceanAPI
 
     Args:
         contacto: Objeto ContactoConfianza
@@ -518,60 +607,38 @@ def enviar_notificacion_contacto(contacto, mensaje):
     Returns:
         dict: {
             'success': bool,
-            'metodos_enviados': list,
-            'metodos_fallidos': list,
-            'respuestas': dict
+            'metodo': str,
+            'respuesta': dict
         }
     """
-    metodos_enviados = []
-    metodos_fallidos = []
-    respuestas = {}
-
-    # Intentar Telegram si está disponible
-    if hasattr(contacto, 'telegram_id') and contacto.telegram_id:
-        resultado = enviar_telegram(contacto.telegram_id, mensaje)
-        if resultado['success']:
-            metodos_enviados.append('telegram')
-            respuestas['telegram'] = resultado.get('respuesta')
-            print(f"✅ Telegram enviado a {contacto.nombre}")
-        else:
-            metodos_fallidos.append('telegram')
-            respuestas['telegram_error'] = resultado.get('error')
-            print(f"❌ Telegram falló para {contacto.nombre}: {resultado.get('error')}")
-
-    # Intentar Email si está disponible
-    if hasattr(contacto, 'email') and contacto.email:
-        asunto = "🚨 ALERTA DE EMERGENCIA - RAPPI SAFE"
-        resultado = enviar_email(contacto.email, asunto, mensaje)
-        if resultado['success']:
-            metodos_enviados.append('email')
-            respuestas['email'] = resultado.get('respuesta')
-            print(f"✅ Email enviado a {contacto.nombre}")
-        else:
-            metodos_fallidos.append('email')
-            respuestas['email_error'] = resultado.get('error')
-            print(f"❌ Email falló para {contacto.nombre}: {resultado.get('error')}")
-
-    # Si no se envió por ningún método real
-    if not metodos_enviados:
-        print(f"📱 [SIMULADO] Notificación para {contacto.nombre}")
-        print(f"   Teléfono: {contacto.telefono}")
-        print(f"   Mensaje: {mensaje[:50]}...")
-        print(f"⚠️ Configure Telegram o Email para notificaciones reales")
-        metodos_enviados.append('simulado')
-        respuestas['simulado'] = {
-            'mensaje': 'Notificación simulada',
-            'contacto': contacto.nombre,
-            'timestamp': timezone.now().isoformat()
+    # Verificar que el contacto tiene teléfono
+    if not hasattr(contacto, 'telefono') or not contacto.telefono:
+        print(f"❌ El contacto {contacto.nombre} no tiene teléfono configurado")
+        return {
+            'success': False,
+            'metodo': 'sms',
+            'error': 'Contacto sin teléfono configurado',
+            'respuesta': {}
         }
 
-    # Construir metodo string para compatibilidad
-    metodo_str = '+'.join(metodos_enviados) if metodos_enviados else 'fallido'
+    # Crear un mensaje más corto para SMS (límite de 160 caracteres)
+    mensaje_sms = mensaje[:160] if len(mensaje) > 160 else mensaje
 
-    return {
-        'success': len(metodos_enviados) > 0,
-        'metodo': metodo_str,
-        'metodos_enviados': metodos_enviados,
-        'metodos_fallidos': metodos_fallidos,
-        'respuesta': respuestas
-    }
+    # Enviar SMS con MoceanAPI
+    resultado = enviar_sms_mocean(contacto.telefono, mensaje_sms)
+
+    if resultado['success']:
+        print(f"✅ SMS enviado exitosamente a {contacto.nombre} ({contacto.telefono})")
+        return {
+            'success': True,
+            'metodo': 'sms',
+            'respuesta': resultado.get('respuesta', {})
+        }
+    else:
+        print(f"❌ Error al enviar SMS a {contacto.nombre}: {resultado.get('error')}")
+        return {
+            'success': False,
+            'metodo': 'sms',
+            'error': resultado.get('error'),
+            'respuesta': {}
+        }
