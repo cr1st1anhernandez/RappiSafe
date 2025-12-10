@@ -94,15 +94,64 @@ def test_sensores(request):
 @user_passes_test(es_repartidor, login_url='login')
 def repartidor_home(request):
     """Página principal del repartidor con botón de pánico"""
+    from math import radians, sin, cos, sqrt, atan2
+
     perfil = request.user.perfil_repartidor
     alertas_activas = Alerta.objects.filter(
         repartidor=request.user,
         estado__in=['pendiente', 'en_atencion']
     ).order_by('-creado_en')
 
+    # Calcular zonas de riesgo cercanas basadas en la ubicación del repartidor
+    zonas_riesgo_cercanas = []
+    if perfil.ultima_latitud and perfil.ultima_longitud:
+        # Obtener todas las zonas de riesgo
+        zonas_riesgo = EstadisticaRiesgo.objects.all().order_by('-puntuacion_riesgo')[:10]
+
+        # Calcular distancia a cada zona
+        for zona in zonas_riesgo:
+            try:
+                # Las coordenadas están en formato GeoJSON
+                coords = zona.coordenadas_zona
+                # Asumiendo que coords tiene 'center' con lat y lng
+                if isinstance(coords, dict) and 'center' in coords:
+                    zona_lat = float(coords['center']['lat'])
+                    zona_lng = float(coords['center']['lng'])
+
+                    # Fórmula de Haversine para calcular distancia
+                    R = 6371  # Radio de la Tierra en km
+
+                    lat1 = radians(float(perfil.ultima_latitud))
+                    lon1 = radians(float(perfil.ultima_longitud))
+                    lat2 = radians(zona_lat)
+                    lon2 = radians(zona_lng)
+
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+
+                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                    c = 2 * atan2(sqrt(a), sqrt(1-a))
+                    distancia = R * c
+
+                    # Solo mostrar zonas dentro de 10 km
+                    if distancia <= 10:
+                        zonas_riesgo_cercanas.append({
+                            'zona': zona,
+                            'distancia': round(distancia, 1)
+                        })
+            except (KeyError, ValueError, TypeError) as e:
+                # Si hay error con las coordenadas, ignorar esta zona
+                continue
+
+        # Ordenar por distancia
+        zonas_riesgo_cercanas.sort(key=lambda x: x['distancia'])
+        # Limitar a las 5 zonas más cercanas
+        zonas_riesgo_cercanas = zonas_riesgo_cercanas[:5]
+
     context = {
         'perfil': perfil,
         'alertas_activas': alertas_activas,
+        'zonas_riesgo_cercanas': zonas_riesgo_cercanas,
     }
     return render(request, 'rappiSafe/repartidor/home.html', context)
 
@@ -113,6 +162,18 @@ def repartidor_home(request):
 def crear_alerta_panico(request):
     """Crear una alerta de pánico"""
     try:
+        # Verificar si ya existe una alerta activa
+        alerta_activa = Alerta.objects.filter(
+            repartidor=request.user,
+            estado__in=['pendiente', 'en_atencion']
+        ).first()
+
+        if alerta_activa:
+            return JsonResponse({
+                'success': False,
+                'error': 'Ya tienes una alerta activa. Espera a que sea resuelta o cancélala primero.'
+            }, status=400)
+
         data = json.loads(request.body)
 
         # Crear la alerta
@@ -956,9 +1017,9 @@ def notificar_contactos_operador(request, alerta_id):
 
 
 @login_required
-@user_passes_test(es_operador)
+@user_passes_test(lambda u: u.rol in ['operador', 'administrador'])
 def generar_reporte_pdf(request):
-    """Generar reporte PDF de alertas"""
+    """Generar reporte PDF de alertas - Accesible para operadores y administradores"""
     from django.http import HttpResponse
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter, A4
@@ -1254,7 +1315,9 @@ def gestionar_usuarios(request):
 @login_required
 @user_passes_test(es_administrador)
 def estadisticas_view(request):
-    """Vista de estadísticas y reportes"""
+    """Vista de estadísticas y reportes con datos reales de la BD"""
+    from django.db.models import Avg, F, ExpressionWrapper, DurationField
+
     # Rango de fechas (últimos 30 días por defecto)
     fecha_fin = timezone.now().date()
     fecha_inicio = fecha_fin - timedelta(days=30)
@@ -1264,7 +1327,25 @@ def estadisticas_view(request):
     if request.GET.get('fecha_fin'):
         fecha_fin = datetime.strptime(request.GET.get('fecha_fin'), '%Y-%m-%d').date()
 
-    # Estadísticas de alertas
+    # ===== ESTADÍSTICAS DE REPARTIDORES =====
+    total_repartidores = User.objects.filter(rol='repartidor', is_active=True).count()
+    repartidores_con_perfil = RepartidorProfile.objects.count()
+
+    # Repartidores por estado (del perfil)
+    repartidores_disponibles = RepartidorProfile.objects.filter(estado='disponible').count()
+    repartidores_en_ruta = RepartidorProfile.objects.filter(estado='en_ruta').count()
+    repartidores_offline = RepartidorProfile.objects.filter(estado='offline').count()
+
+    # ===== ESTADÍSTICAS DE OPERADORES =====
+    total_operadores = User.objects.filter(rol='operador', is_active=True).count()
+
+    # Operadores que han atendido alertas (en el período)
+    operadores_activos = Incidente.objects.filter(
+        creado_en__date__gte=fecha_inicio,
+        creado_en__date__lte=fecha_fin
+    ).values('operador').distinct().count()
+
+    # ===== ESTADÍSTICAS DE ALERTAS =====
     alertas = Alerta.objects.filter(
         creado_en__date__gte=fecha_inicio,
         creado_en__date__lte=fecha_fin
@@ -1273,21 +1354,111 @@ def estadisticas_view(request):
     total_alertas = alertas.count()
     alertas_panico = alertas.filter(tipo='panico').count()
     alertas_accidente = alertas.filter(tipo='accidente').count()
+    alertas_agitacion = alertas.filter(tipo='agitacion').count()
 
     # Alertas por estado
-    alertas_por_estado = alertas.values('estado').annotate(total=Count('id'))
+    alertas_pendientes = alertas.filter(estado='pendiente').count()
+    alertas_atendidas = alertas.filter(estado='atendida').count()
+    alertas_resueltas = alertas.filter(estado='resuelta').count()
+    alertas_cerradas = alertas.filter(estado='cerrada').count()
+    alertas_canceladas = alertas.filter(estado='cancelada').count()
 
-    # Zonas de riesgo
-    zonas_riesgo = EstadisticaRiesgo.objects.all().order_by('-puntuacion_riesgo')[:10]
+    alertas_por_estado = alertas.values('estado').annotate(total=Count('id')).order_by('-total')
+
+    # ===== TOP REPARTIDORES CON MÁS ALERTAS =====
+    top_repartidores = alertas.values(
+        'repartidor__id',
+        'repartidor__first_name',
+        'repartidor__last_name',
+        'repartidor__username'
+    ).annotate(
+        total_alertas=Count('id')
+    ).order_by('-total_alertas')[:5]
+
+    # ===== ESTADÍSTICAS DE TIEMPO DE RESPUESTA =====
+    # Calcular tiempo promedio de respuesta (entre creación de alerta y creación de incidente)
+    incidentes_periodo = Incidente.objects.filter(
+        creado_en__date__gte=fecha_inicio,
+        creado_en__date__lte=fecha_fin,
+        alerta__isnull=False
+    )
+
+    tiempos_respuesta = []
+    for incidente in incidentes_periodo:
+        if incidente.alerta:
+            tiempo_diff = incidente.creado_en - incidente.alerta.creado_en
+            tiempos_respuesta.append(tiempo_diff.total_seconds() / 60)  # en minutos
+
+    tiempo_promedio_respuesta = round(sum(tiempos_respuesta) / len(tiempos_respuesta), 2) if tiempos_respuesta else 0
+
+    # ===== ALERTAS POR TIPO =====
+    alertas_por_tipo = alertas.values('tipo').annotate(total=Count('id')).order_by('-total')
+
+    # ===== INCIDENTES =====
+    total_incidentes = Incidente.objects.filter(
+        creado_en__date__gte=fecha_inicio,
+        creado_en__date__lte=fecha_fin
+    ).count()
+
+    incidentes_911 = Incidente.objects.filter(
+        creado_en__date__gte=fecha_inicio,
+        creado_en__date__lte=fecha_fin,
+        folio_911__isnull=False
+    ).exclude(folio_911='').count()
+
+    # ===== ESTADÍSTICAS DE AYUDA PSICOLÓGICA =====
+    total_solicitudes_psicologicas = SolicitudAyudaPsicologica.objects.filter(
+        creado_en__date__gte=fecha_inicio,
+        creado_en__date__lte=fecha_fin
+    ).count()
+
+    solicitudes_atendidas = SolicitudAyudaPsicologica.objects.filter(
+        creado_en__date__gte=fecha_inicio,
+        creado_en__date__lte=fecha_fin,
+        estado='atendida'
+    ).count()
 
     context = {
         'fecha_inicio': fecha_inicio,
         'fecha_fin': fecha_fin,
+
+        # Repartidores
+        'total_repartidores': total_repartidores,
+        'repartidores_con_perfil': repartidores_con_perfil,
+        'repartidores_disponibles': repartidores_disponibles,
+        'repartidores_en_ruta': repartidores_en_ruta,
+        'repartidores_offline': repartidores_offline,
+
+        # Operadores
+        'total_operadores': total_operadores,
+        'operadores_activos': operadores_activos,
+
+        # Alertas
         'total_alertas': total_alertas,
         'alertas_panico': alertas_panico,
         'alertas_accidente': alertas_accidente,
+        'alertas_agitacion': alertas_agitacion,
+        'alertas_pendientes': alertas_pendientes,
+        'alertas_atendidas': alertas_atendidas,
+        'alertas_resueltas': alertas_resueltas,
+        'alertas_cerradas': alertas_cerradas,
+        'alertas_canceladas': alertas_canceladas,
         'alertas_por_estado': alertas_por_estado,
-        'zonas_riesgo': zonas_riesgo,
+        'alertas_por_tipo': alertas_por_tipo,
+
+        # Top repartidores
+        'top_repartidores': top_repartidores,
+
+        # Tiempos
+        'tiempo_promedio_respuesta': tiempo_promedio_respuesta,
+
+        # Incidentes
+        'total_incidentes': total_incidentes,
+        'incidentes_911': incidentes_911,
+
+        # Ayuda psicológica
+        'total_solicitudes_psicologicas': total_solicitudes_psicologicas,
+        'solicitudes_atendidas': solicitudes_atendidas,
     }
     return render(request, 'rappiSafe/admin/estadisticas.html', context)
 
@@ -1339,6 +1510,8 @@ def historial_view(request):
 def register_view(request):
     """Vista de registro de nuevos usuarios repartidores"""
     import logging
+    from django.db import transaction
+
     logger = logging.getLogger(__name__)
 
     if request.user.is_authenticated:
@@ -1347,7 +1520,7 @@ def register_view(request):
     if request.method == 'POST':
         # Obtener datos del formulario y hacer trim
         username = request.POST.get('username', '').strip()
-        email = request.POST.get('email', '').strip()
+        email = request.POST.get('email', '').strip().lower()
         password = request.POST.get('password', '')
         password2 = request.POST.get('password2', '')
         first_name = request.POST.get('first_name', '').strip()
@@ -1355,104 +1528,286 @@ def register_view(request):
         telefono = request.POST.get('telefono', '').strip()
         numero_identificacion = request.POST.get('numero_identificacion', '').strip()
 
-        logger.info(f'Intento de registro - Username: {username}, Email: {email}')
+        logger.info(f'=== INICIO REGISTRO ===')
+        logger.info(f'Username: {username}')
+        logger.info(f'Email: {email}')
+        logger.info(f'Numero ID: {numero_identificacion}')
 
-        # Validaciones
+        # Validaciones básicas
         errors = []
 
-        # Validar que todos los campos estén presentes
-        if not all([username, email, password, password2, first_name, last_name, telefono, numero_identificacion]):
-            errors.append('Todos los campos son obligatorios')
-            logger.warning('Registro fallido: campos vacíos')
+        # Validar campos obligatorios
+        if not username:
+            errors.append('El nombre de usuario es obligatorio')
+        if not email:
+            errors.append('El correo electrónico es obligatorio')
+        if not password:
+            errors.append('La contraseña es obligatoria')
+        if not password2:
+            errors.append('Debes confirmar tu contraseña')
+        if not first_name:
+            errors.append('El nombre es obligatorio')
+        if not last_name:
+            errors.append('El apellido es obligatorio')
+        if not telefono:
+            errors.append('El teléfono es obligatorio')
+        if not numero_identificacion:
+            errors.append('El número de identificación es obligatorio')
 
-        # Solo validar unicidad si los campos tienen valores
-        if username:
-            if User.objects.filter(username__iexact=username).exists():
-                errors.append('El nombre de usuario ya está en uso')
-                logger.warning(f'Registro fallido: username {username} ya existe')
-
-        if email:
-            if User.objects.filter(email__iexact=email).exists():
-                errors.append('El correo electrónico ya está registrado')
-                logger.warning(f'Registro fallido: email {email} ya existe')
-
-        if numero_identificacion:
-            if RepartidorProfile.objects.filter(numero_identificacion__iexact=numero_identificacion).exists():
-                errors.append('El número de identificación ya está registrado')
-                logger.warning(f'Registro fallido: identificación {numero_identificacion} ya existe')
-
-        # Validaciones de contraseña solo si hay contraseñas
-        if password or password2:
+        # Validar contraseñas
+        if password and password2:
             if password != password2:
                 errors.append('Las contraseñas no coinciden')
-
-            if len(password) < 8:
+            elif len(password) < 8:
                 errors.append('La contraseña debe tener al menos 8 caracteres')
-
-            if not any(char.isdigit() for char in password):
+            elif not any(char.isdigit() for char in password):
                 errors.append('La contraseña debe contener al menos un número')
-
-            if not any(char.isalpha() for char in password):
+            elif not any(char.isalpha() for char in password):
                 errors.append('La contraseña debe contener al menos una letra')
 
-        # Si hay errores, mostrarlos
+        # Validar email
+        if email and '@' not in email:
+            errors.append('El correo electrónico no es válido')
+
+        # Si hay errores básicos, detener aquí
         if errors:
             for error in errors:
                 messages.error(request, error)
-            logger.warning(f'Registro fallido con errores: {errors}')
-            return render(request, 'registration/register.html')
+            logger.warning(f'Validación fallida: {errors}')
+            return render(request, 'registration/register.html', {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono,
+                'numero_identificacion': numero_identificacion
+            })
 
+        # Validar unicidad
+        logger.info('Validando unicidad de datos...')
+
+        if User.objects.filter(username__iexact=username).exists():
+            messages.error(request, 'El nombre de usuario ya está en uso')
+            logger.warning(f'Username {username} ya existe')
+            return render(request, 'registration/register.html', {
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono,
+                'numero_identificacion': numero_identificacion
+            })
+
+        if User.objects.filter(email__iexact=email).exists():
+            messages.error(request, 'El correo electrónico ya está registrado')
+            logger.warning(f'Email {email} ya existe')
+            return render(request, 'registration/register.html', {
+                'username': username,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono,
+                'numero_identificacion': numero_identificacion
+            })
+
+        if RepartidorProfile.objects.filter(numero_identificacion__iexact=numero_identificacion).exists():
+            messages.error(request, 'El número de identificación ya está registrado')
+            logger.warning(f'Numero identificacion {numero_identificacion} ya existe')
+            return render(request, 'registration/register.html', {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono
+            })
+
+        # Limpiar teléfono
+        telefono_limpio = ''.join(c for c in telefono if c.isdigit() or c == '+')
+        if len(telefono_limpio) < 10:
+            messages.error(request, 'El teléfono debe contener al menos 10 dígitos')
+            return render(request, 'registration/register.html', {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'numero_identificacion': numero_identificacion
+            })
+
+        # Crear usuario y perfil en una transacción
         try:
-            # Crear el usuario
-            logger.info(f'Creando usuario {username}...')
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-                first_name=first_name,
-                last_name=last_name,
-                telefono=telefono,
-                rol='repartidor',
-                activo=True
-            )
-            logger.info(f'Usuario {username} creado exitosamente con ID {user.id}')
+            with transaction.atomic():
+                logger.info(f'Creando usuario {username}...')
 
-            # Crear el perfil de repartidor
-            logger.info(f'Creando perfil de repartidor para usuario {username}...')
-            RepartidorProfile.objects.create(
-                user=user,
-                numero_identificacion=numero_identificacion
-            )
-            logger.info(f'Perfil de repartidor creado exitosamente para {username}')
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    telefono=telefono_limpio,
+                    rol='repartidor',
+                    activo=True
+                )
+                logger.info(f'Usuario creado con ID {user.id}')
 
-            messages.success(request, 'Cuenta creada exitosamente. Por favor inicia sesión.')
+                # El signal puede haber creado un perfil automáticamente
+                # Intentamos obtenerlo o crearlo si no existe
+                logger.info(f'Configurando perfil de repartidor...')
+                perfil, created = RepartidorProfile.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        'numero_identificacion': numero_identificacion,
+                        'estado': 'offline'
+                    }
+                )
+
+                # Si el perfil ya existía (creado por el signal), actualizar el número de identificación
+                if not created:
+                    logger.info(f'Perfil existente detectado, actualizando número de identificación')
+                    perfil.numero_identificacion = numero_identificacion
+                    perfil.estado = 'offline'
+                    perfil.save()
+                else:
+                    logger.info(f'Perfil creado con ID {perfil.id}')
+
+            messages.success(request, '¡Cuenta creada exitosamente! Por favor inicia sesión.')
+            logger.info(f'=== REGISTRO EXITOSO ===')
             return redirect('login')
 
         except Exception as e:
-            logger.error(f'Error al crear cuenta para {username}: {str(e)}', exc_info=True)
+            logger.error(f'ERROR al crear cuenta: {str(e)}', exc_info=True)
 
-            # Verificar si es un error de constraint único
+            # Mensaje de error más amigable
             error_msg = str(e).lower()
-            if 'unique' in error_msg or 'unique constraint' in error_msg:
-                if 'email' in error_msg:
-                    messages.error(request, 'El correo electrónico ya está registrado.')
-                elif 'username' in error_msg:
-                    messages.error(request, 'El nombre de usuario ya está en uso.')
-                elif 'numero_identificacion' in error_msg:
-                    messages.error(request, 'El número de identificación ya está registrado.')
-                else:
-                    messages.error(request, 'Ya existe un registro con estos datos. Por favor verifica tu información.')
+            if 'unique' in error_msg and 'numero_identificacion' in error_msg:
+                messages.error(request, 'El número de identificación ya está en uso. Por favor usa otro.')
             else:
-                messages.error(request, f'Error al crear la cuenta: {str(e)}')
+                messages.error(request, 'Error al crear la cuenta. Por favor intenta nuevamente.')
 
-            # Si el usuario se creó pero falló el perfil, eliminarlo
-            try:
-                if 'user' in locals() and user.pk:
-                    logger.warning(f'Eliminando usuario {username} debido a error en creación de perfil')
-                    user.delete()
-            except Exception as delete_error:
-                logger.error(f'Error al eliminar usuario fallido: {str(delete_error)}')
-
-            return render(request, 'registration/register.html')
+            return render(request, 'registration/register.html', {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono,
+                'numero_identificacion': numero_identificacion
+            })
 
     return render(request, 'registration/register.html')
+
+
+@login_required
+@user_passes_test(lambda u: u.rol == 'administrador')
+def crear_operador_view(request):
+    """Vista para que los administradores creen operadores"""
+    import logging
+    from django.db import transaction
+
+    logger = logging.getLogger(__name__)
+
+    if request.method == 'POST':
+        # Obtener datos del formulario
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip().lower()
+        password = request.POST.get('password', '')
+        password2 = request.POST.get('password2', '')
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        telefono = request.POST.get('telefono', '').strip()
+
+        logger.info(f'=== CREACIÓN DE OPERADOR ===')
+        logger.info(f'Admin: {request.user.username}')
+        logger.info(f'Nuevo operador: {username}')
+
+        # Validaciones básicas
+        errors = []
+
+        if not username:
+            errors.append('El nombre de usuario es obligatorio')
+        if not email:
+            errors.append('El correo electrónico es obligatorio')
+        if not password:
+            errors.append('La contraseña es obligatoria')
+        if not password2:
+            errors.append('Debes confirmar la contraseña')
+        if not first_name:
+            errors.append('El nombre es obligatorio')
+        if not last_name:
+            errors.append('El apellido es obligatorio')
+
+        # Validar contraseñas
+        if password and password2:
+            if password != password2:
+                errors.append('Las contraseñas no coinciden')
+            elif len(password) < 8:
+                errors.append('La contraseña debe tener al menos 8 caracteres')
+
+        # Validar email
+        if email and '@' not in email:
+            errors.append('El correo electrónico no es válido')
+
+        # Si hay errores básicos, detener
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(request, 'rappiSafe/admin/crear_operador.html', {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono
+            })
+
+        # Validar unicidad
+        if User.objects.filter(username__iexact=username).exists():
+            messages.error(request, 'El nombre de usuario ya está en uso')
+            return render(request, 'rappiSafe/admin/crear_operador.html', {
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono
+            })
+
+        if User.objects.filter(email__iexact=email).exists():
+            messages.error(request, 'El correo electrónico ya está registrado')
+            return render(request, 'rappiSafe/admin/crear_operador.html', {
+                'username': username,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono
+            })
+
+        # Limpiar teléfono
+        telefono_limpio = ''.join(c for c in telefono if c.isdigit() or c == '+') if telefono else None
+
+        # Crear operador
+        try:
+            with transaction.atomic():
+                logger.info(f'Creando operador {username}...')
+
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    telefono=telefono_limpio,
+                    rol='operador',
+                    activo=True
+                )
+                logger.info(f'Operador creado con ID {user.id}')
+
+            messages.success(request, f'Operador {username} creado exitosamente.')
+            logger.info(f'=== OPERADOR CREADO EXITOSAMENTE ===')
+            return redirect('gestionar_usuarios')
+
+        except Exception as e:
+            logger.error(f'ERROR al crear operador: {str(e)}', exc_info=True)
+            messages.error(request, 'Error al crear el operador. Por favor intenta nuevamente.')
+            return render(request, 'rappiSafe/admin/crear_operador.html', {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'telefono': telefono
+            })
+
+    return render(request, 'rappiSafe/admin/crear_operador.html')

@@ -2,8 +2,53 @@
 
 {% block title %}Estadísticas - Rappi Safe{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Estilos para la barra de navegación inferior */
+    .bottom-nav-admin {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+        z-index: 40;
+        display: flex;
+        justify-content: space-around;
+        padding: 0.75rem 0;
+    }
+
+    .bottom-nav-admin a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+
+    .bottom-nav-admin a:hover {
+        background-color: #fef2f2;
+    }
+
+    .bottom-nav-admin a.active {
+        color: #dc2626;
+    }
+
+    .bottom-nav-admin a:not(.active) {
+        color: #6b7280;
+    }
+
+    /* Agregar padding al contenido para que no se oculte */
+    .admin-content {
+        padding-bottom: 80px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto admin-content">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-3xl font-bold text-gray-800">Estadísticas y Reportes</h1>
         <a href="{% url 'admin_dashboard' %}" class="text-rappi-red hover:text-rappi-red-700">
@@ -30,8 +75,54 @@
         </div>
     </form>
 
-    <!-- Estadísticas generales -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Estadísticas de Personal -->
+    <h2 class="text-2xl font-bold text-gray-800 mb-4">Personal del Sistema</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Total Repartidores</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ total_repartidores }}</p>
+                </div>
+                <i class="fas fa-motorcycle text-4xl text-blue-500"></i>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Repartidores Disponibles</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ repartidores_disponibles }}</p>
+                </div>
+                <i class="fas fa-check-circle text-4xl text-green-500"></i>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Total Operadores</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ total_operadores }}</p>
+                </div>
+                <i class="fas fa-headset text-4xl text-purple-500"></i>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Operadores Activos</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ operadores_activos }}</p>
+                    <p class="text-xs text-gray-500 mt-1">En el período</p>
+                </div>
+                <i class="fas fa-user-check text-4xl text-indigo-500"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas de Alertas -->
+    <h2 class="text-2xl font-bold text-gray-800 mb-4">Alertas del Período</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="card">
             <div class="flex items-center justify-between">
                 <div>
@@ -61,54 +152,218 @@
                 <i class="fas fa-car-crash text-4xl text-yellow-500"></i>
             </div>
         </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Alertas por Agitación</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ alertas_agitacion }}</p>
+                </div>
+                <i class="fas fa-mobile-alt text-4xl text-pink-500"></i>
+            </div>
+        </div>
     </div>
 
-    <!-- Alertas por estado -->
+    <!-- Métricas de Rendimiento -->
+    <h2 class="text-2xl font-bold text-gray-800 mb-4">Métricas de Rendimiento</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Tiempo Promedio Respuesta</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ tiempo_promedio_respuesta }}</p>
+                    <p class="text-xs text-gray-500 mt-1">minutos</p>
+                </div>
+                <i class="fas fa-clock text-4xl text-blue-500"></i>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Total Incidentes</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ total_incidentes }}</p>
+                </div>
+                <i class="fas fa-file-alt text-4xl text-indigo-500"></i>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Llamadas al 911</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ incidentes_911 }}</p>
+                </div>
+                <i class="fas fa-phone text-4xl text-red-500"></i>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-600 text-sm">Solicitudes Psicológicas</p>
+                    <p class="text-3xl font-bold text-gray-800">{{ total_solicitudes_psicologicas }}</p>
+                    <p class="text-xs text-gray-500 mt-1">{{ solicitudes_atendidas }} atendidas</p>
+                </div>
+                <i class="fas fa-heart text-4xl text-pink-500"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas por estado y Top Repartidores -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div class="card">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Alertas por Estado</h2>
             <div class="space-y-3">
-                {% for item in alertas_por_estado %}
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span class="text-gray-700">{{ item.estado|capfirst }}</span>
-                    <span class="font-bold text-gray-900">{{ item.total }}</span>
-                </div>
-                {% empty %}
-                <p class="text-gray-600 text-center">No hay datos disponibles</p>
-                {% endfor %}
+                {% if alertas_por_estado %}
+                    {% for item in alertas_por_estado %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            {% if item.estado == 'pendiente' %}
+                                <i class="fas fa-clock text-yellow-500"></i>
+                            {% elif item.estado == 'atendida' %}
+                                <i class="fas fa-user-check text-blue-500"></i>
+                            {% elif item.estado == 'resuelta' %}
+                                <i class="fas fa-check-circle text-green-500"></i>
+                            {% elif item.estado == 'cerrada' %}
+                                <i class="fas fa-times-circle text-gray-500"></i>
+                            {% else %}
+                                <i class="fas fa-ban text-red-500"></i>
+                            {% endif %}
+                            <span class="text-gray-700">{{ item.estado|capfirst }}</span>
+                        </div>
+                        <span class="font-bold text-gray-900">{{ item.total }}</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p class="text-gray-600 text-center py-4">No hay alertas en el período seleccionado</p>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Zonas de mayor riesgo -->
+        <!-- Top Repartidores -->
         <div class="card">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Zonas de Mayor Riesgo</h2>
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Top 5 Repartidores con Más Alertas</h2>
             <div class="space-y-3">
-                {% for zona in zonas_riesgo %}
-                <div class="p-3 bg-gray-50 rounded-lg">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="font-medium text-gray-800">{{ zona.nombre_zona }}</span>
-                        <span class="badge {% if zona.puntuacion_riesgo > 70 %}badge-danger{% elif zona.puntuacion_riesgo > 40 %}badge-warning{% else %}badge-success{% endif %}">
-                            {{ zona.puntuacion_riesgo|floatformat:1 }}
-                        </span>
+                {% if top_repartidores %}
+                    {% for rep in top_repartidores %}
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">
+                                {{ forloop.counter }}
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-800">{{ rep.repartidor__first_name }} {{ rep.repartidor__last_name }}</p>
+                                <p class="text-xs text-gray-500">@{{ rep.repartidor__username }}</p>
+                            </div>
+                        </div>
+                        <span class="font-bold text-gray-900">{{ rep.total_alertas }}</span>
                     </div>
-                    <div class="flex items-center justify-between text-sm text-gray-600">
-                        <span>Total alertas: {{ zona.total_alertas }}</span>
-                        <span>{{ zona.periodo_inicio|date:"d/m/Y" }} - {{ zona.periodo_fin|date:"d/m/Y" }}</span>
-                    </div>
-                </div>
-                {% empty %}
-                <p class="text-gray-600 text-center">No hay zonas de riesgo registradas</p>
-                {% endfor %}
+                    {% endfor %}
+                {% else %}
+                <p class="text-gray-600 text-center py-4">No hay datos disponibles</p>
+                {% endif %}
             </div>
+        </div>
+    </div>
+
+    <!-- Alertas por Tipo -->
+    <div class="card mb-8">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Distribución de Alertas por Tipo</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {% if alertas_por_tipo %}
+                {% for item in alertas_por_tipo %}
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        {% if item.tipo == 'panico' %}
+                            <i class="fas fa-hand-paper text-orange-500 text-2xl"></i>
+                        {% elif item.tipo == 'accidente' %}
+                            <i class="fas fa-car-crash text-yellow-500 text-2xl"></i>
+                        {% else %}
+                            <i class="fas fa-mobile-alt text-pink-500 text-2xl"></i>
+                        {% endif %}
+                        <span class="text-gray-700 font-medium">{{ item.tipo|capfirst }}</span>
+                    </div>
+                    <span class="text-2xl font-bold text-gray-900">{{ item.total }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="col-span-3">
+                <p class="text-gray-600 text-center py-4">No hay alertas en el período seleccionado</p>
+            </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- Botón de descarga de reporte -->
     <div class="card text-center">
-        <p class="text-gray-600 mb-4">Descarga un reporte completo de las estadísticas</p>
-        <button onclick="alert('Función de descarga PDF en desarrollo')" class="btn-primary">
+        <p class="text-gray-600 mb-4">Descarga un reporte completo de las estadísticas del período seleccionado</p>
+        <button onclick="generarReportePDF()" class="btn-primary">
             <i class="fas fa-file-pdf mr-2"></i>Descargar Reporte PDF
         </button>
     </div>
+</div>
+
+<script>
+    function generarReportePDF() {
+        // Obtener las fechas del formulario
+        const fechaInicio = document.querySelector('input[name="fecha_inicio"]')?.value;
+        const fechaFin = document.querySelector('input[name="fecha_fin"]')?.value;
+
+        // Construir URL con parámetros
+        let url = '/operador/reportes/pdf/';
+        const params = new URLSearchParams();
+
+        if (fechaInicio) {
+            params.append('fecha_inicio', fechaInicio);
+        }
+        if (fechaFin) {
+            params.append('fecha_fin', fechaFin);
+        }
+
+        if (params.toString()) {
+            url += '?' + params.toString();
+        }
+
+        // Descargar el PDF
+        fetch(url)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error al generar el reporte');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                // Crear un enlace temporal para descargar el archivo
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `reporte_alertas_${fechaInicio || 'sin-fecha'}_${fechaFin || 'sin-fecha'}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al generar el reporte PDF. Por favor, intenta nuevamente.');
+            });
+    }
+</script>
+
+<!-- Bottom Navigation -->
+<div class="bottom-nav-admin">
+    <a href="{% url 'admin_dashboard' %}">
+        <i class="fas fa-home text-xl mb-1"></i>
+        <span class="text-xs font-medium">Dashboard</span>
+    </a>
+    <a href="{% url 'gestionar_usuarios' %}">
+        <i class="fas fa-users text-xl mb-1"></i>
+        <span class="text-xs font-medium">Usuarios</span>
+    </a>
+    <a href="{% url 'estadisticas' %}" class="active">
+        <i class="fas fa-chart-bar text-xl mb-1"></i>
+        <span class="text-xs font-medium">Estadísticas</span>
+    </a>
 </div>
 {% endblock %}

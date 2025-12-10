@@ -237,6 +237,7 @@
                             required
                             class="input-minimal"
                             placeholder="Tu nombre"
+                            value="{{ first_name|default:'' }}"
                         >
                         <div class="error-message" id="error-first_name">El nombre es obligatorio</div>
                     </div>
@@ -250,6 +251,7 @@
                             required
                             class="input-minimal"
                             placeholder="Tu apellido"
+                            value="{{ last_name|default:'' }}"
                         >
                         <div class="error-message" id="error-last_name">El apellido es obligatorio</div>
                     </div>
@@ -264,6 +266,7 @@
                         required
                         class="input-minimal"
                         placeholder="Nombre de usuario"
+                        value="{{ username|default:'' }}"
                     >
                     <div class="error-message" id="error-username">El usuario es obligatorio</div>
                 </div>
@@ -277,6 +280,7 @@
                         required
                         class="input-minimal"
                         placeholder="correo@ejemplo.com"
+                        value="{{ email|default:'' }}"
                     >
                     <div class="error-message" id="error-email">El correo electrónico es obligatorio y debe ser válido</div>
                 </div>
@@ -291,6 +295,7 @@
                             required
                             class="input-minimal"
                             placeholder="+52 1234567890"
+                            value="{{ telefono|default:'' }}"
                         >
                         <div class="error-message" id="error-telefono">El teléfono es obligatorio</div>
                     </div>
@@ -303,7 +308,8 @@
                             name="numero_identificacion"
                             required
                             class="input-minimal"
-                            placeholder="INE, RFC, etc."
+                            placeholder="INE-123456, REP-000001, etc."
+                            value="{{ numero_identificacion|default:'' }}"
                         >
                         <div class="error-message" id="error-numero_identificacion">El número de identificación es obligatorio</div>
                     </div>

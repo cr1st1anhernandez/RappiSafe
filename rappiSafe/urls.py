@@ -46,5 +46,6 @@ urlpatterns = [
     # Administrador
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('admin-dashboard/usuarios/', views.gestionar_usuarios, name='gestionar_usuarios'),
+    path('admin-dashboard/crear-operador/', views.crear_operador_view, name='crear_operador'),
     path('admin-dashboard/estadisticas/', views.estadisticas_view, name='estadisticas'),
 ]

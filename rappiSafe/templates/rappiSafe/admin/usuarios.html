@@ -2,8 +2,53 @@
 
 {% block title %}Gestión de Usuarios - Rappi Safe{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Estilos para la barra de navegación inferior */
+    .bottom-nav-admin {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+        z-index: 40;
+        display: flex;
+        justify-content: space-around;
+        padding: 0.75rem 0;
+    }
+
+    .bottom-nav-admin a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+
+    .bottom-nav-admin a:hover {
+        background-color: #fef2f2;
+    }
+
+    .bottom-nav-admin a.active {
+        color: #dc2626;
+    }
+
+    .bottom-nav-admin a:not(.active) {
+        color: #6b7280;
+    }
+
+    /* Agregar padding al contenido para que no se oculte */
+    .admin-content {
+        padding-bottom: 80px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto admin-content">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-3xl font-bold text-gray-800">Gestión de Usuarios</h1>
         <a href="{% url 'admin_dashboard' %}" class="text-rappi-red hover:text-rappi-red-700">
@@ -82,9 +127,9 @@
                         {{ usuario.date_joined|date:"d/m/Y" }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <a href="/admin/rappiSafe/user/{{ usuario.id }}/change/" class="text-rappi-red hover:text-rappi-red-700 mr-3">
-                            Editar
-                        </a>
+                        <span class="text-gray-400 text-xs">
+                            {{ usuario.get_rol_display }}
+                        </span>
                     </td>
                 </tr>
                 {% empty %}
@@ -120,5 +165,21 @@
         </nav>
     </div>
     {% endif %}
+</div>
+
+<!-- Bottom Navigation -->
+<div class="bottom-nav-admin">
+    <a href="{% url 'admin_dashboard' %}">
+        <i class="fas fa-home text-xl mb-1"></i>
+        <span class="text-xs font-medium">Dashboard</span>
+    </a>
+    <a href="{% url 'gestionar_usuarios' %}" class="active">
+        <i class="fas fa-users text-xl mb-1"></i>
+        <span class="text-xs font-medium">Usuarios</span>
+    </a>
+    <a href="{% url 'estadisticas' %}">
+        <i class="fas fa-chart-bar text-xl mb-1"></i>
+        <span class="text-xs font-medium">Estadísticas</span>
+    </a>
 </div>
 {% endblock %}

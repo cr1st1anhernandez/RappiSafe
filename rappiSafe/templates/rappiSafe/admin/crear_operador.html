@@ -1,0 +1,212 @@
+{% extends 'rappiSafe/base.html' %}
+
+{% block title %}Crear Operador - Rappi Safe{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Estilos para la barra de navegación inferior */
+    .bottom-nav-admin {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+        z-index: 40;
+        display: flex;
+        justify-content: space-around;
+        padding: 0.75rem 0;
+    }
+
+    .bottom-nav-admin a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+
+    .bottom-nav-admin a:hover {
+        background-color: #fef2f2;
+    }
+
+    .bottom-nav-admin a.active {
+        color: #dc2626;
+    }
+
+    .bottom-nav-admin a:not(.active) {
+        color: #6b7280;
+    }
+
+    /* Agregar padding al contenido para que no se oculte */
+    .admin-content {
+        padding-bottom: 80px;
+    }
+
+    .input-minimal {
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 14px 16px;
+        font-size: 15px;
+        transition: all 0.2s ease;
+        width: 100%;
+        color: #1f2937;
+    }
+
+    .input-minimal:focus {
+        outline: none;
+        border-color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+
+    .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    @media (max-width: 640px) {
+        .grid-2 {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto admin-content">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">Crear Nuevo Operador</h1>
+        <a href="{% url 'admin_dashboard' %}" class="text-rappi-red hover:text-rappi-red-700">
+            <i class="fas fa-arrow-left mr-2"></i>Volver
+        </a>
+    </div>
+
+    <!-- Mensajes -->
+    {% if messages %}
+        {% for message in messages %}
+        <div class="{% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-800{% else %}bg-green-50 border border-green-200 text-green-800{% endif %} rounded-lg p-4 mb-6">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Formulario -->
+    <div class="card">
+        <form method="POST" action="{% url 'crear_operador' %}">
+            {% csrf_token %}
+
+            <div class="grid-2">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nombre *</label>
+                    <input
+                        type="text"
+                        name="first_name"
+                        required
+                        class="input-minimal"
+                        placeholder="Nombre del operador"
+                        value="{{ first_name|default:'' }}"
+                    >
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Apellido *</label>
+                    <input
+                        type="text"
+                        name="last_name"
+                        required
+                        class="input-minimal"
+                        placeholder="Apellido del operador"
+                        value="{{ last_name|default:'' }}"
+                    >
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Usuario *</label>
+                <input
+                    type="text"
+                    name="username"
+                    required
+                    class="input-minimal"
+                    placeholder="Nombre de usuario"
+                    value="{{ username|default:'' }}"
+                >
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Correo Electrónico *</label>
+                <input
+                    type="email"
+                    name="email"
+                    required
+                    class="input-minimal"
+                    placeholder="correo@ejemplo.com"
+                    value="{{ email|default:'' }}"
+                >
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Teléfono</label>
+                <input
+                    type="tel"
+                    name="telefono"
+                    class="input-minimal"
+                    placeholder="+52 1234567890"
+                    value="{{ telefono|default:'' }}"
+                >
+                <p class="text-xs text-gray-500 mt-1">Opcional</p>
+            </div>
+
+            <div class="grid-2">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Contraseña *</label>
+                    <input
+                        type="password"
+                        name="password"
+                        required
+                        class="input-minimal"
+                        placeholder="Mínimo 8 caracteres"
+                    >
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Confirmar Contraseña *</label>
+                    <input
+                        type="password"
+                        name="password2"
+                        required
+                        class="input-minimal"
+                        placeholder="Repite la contraseña"
+                    >
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <button type="submit" class="btn-primary w-full">
+                    <i class="fas fa-user-plus mr-2"></i>Crear Operador
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bottom Navigation -->
+<div class="bottom-nav-admin">
+    <a href="{% url 'admin_dashboard' %}">
+        <i class="fas fa-home text-xl mb-1"></i>
+        <span class="text-xs font-medium">Dashboard</span>
+    </a>
+    <a href="{% url 'gestionar_usuarios' %}">
+        <i class="fas fa-users text-xl mb-1"></i>
+        <span class="text-xs font-medium">Usuarios</span>
+    </a>
+    <a href="{% url 'estadisticas' %}">
+        <i class="fas fa-chart-bar text-xl mb-1"></i>
+        <span class="text-xs font-medium">Estadísticas</span>
+    </a>
+</div>
+{% endblock %}
