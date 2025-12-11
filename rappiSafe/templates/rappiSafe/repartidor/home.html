@@ -253,8 +253,8 @@
                         <span id="gps-status">Iniciando GPS...</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <i class="fas fa-battery-full" id="battery-icon"></i>
-                        <span data-battery-level>{% if perfil.nivel_bateria %}{{ perfil.nivel_bateria }}{% else %}--{% endif %}%</span>
+                        <i class="fas fa-battery-full text-gray-400" id="battery-icon"></i>
+                        <span data-battery-level class="text-gray-400">--</span>
                     </div>
                 </div>
             </div>
@@ -521,11 +521,22 @@ let currentAlertId = null;
 // ============================================================================
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Iniciando aplicación...');
+
     initMap();
     initSearchBox();
     initSOSButton();
     initRouteControls();
+
+    // ============================================================================
+    // INICIAR MONITOREO DE BATERÍA REAL DEL DISPOSITIVO
+    // ============================================================================
+    console.log('🔋 Obteniendo nivel de batería REAL del dispositivo...');
+
+    // Iniciar monitoreo de batería inmediatamente (obtiene el valor real)
     initBatteryMonitoring();
+
+    // El BatteryMonitor.init() ya maneja todo el flujo de obtención y actualización
+    // Si el Battery API no está disponible (ej. iOS Safari), mostrará 100% automáticamente
 });
 
 // ============================================================================
@@ -1184,10 +1195,11 @@ function activateSOS() {
         const alertData = {
             latitud: latitud || 0,
             longitud: longitud || 0,
-            bateria: batteryLevel || {% if perfil.nivel_bateria %}{{ perfil.nivel_bateria }}{% else %}100{% endif %},
+            bateria: batteryLevel !== null ? batteryLevel : 100,  // Usar nivel real o 100% si no está disponible
             datos_sensores: {
                 metodo_ubicacion: metodo,
-                tiene_gps: latitud !== null && longitud !== null
+                tiene_gps: latitud !== null && longitud !== null,
+                bateria_real: batteryLevel !== null  // Indicar si es batería real o valor por defecto
             }
         };
 
@@ -1794,7 +1806,7 @@ async function getBatteryLevel() {
         if ('getBattery' in navigator) {
             const battery = await navigator.getBattery();
             const level = Math.round(battery.level * 100);
-            console.log('🔋 Nivel de batería detectado:', level + '%');
+            console.log('🔋 ✅ Nivel de batería REAL detectado:', level + '%');
 
             // Actualizar UI si existe
             updateBatteryUI(level);
@@ -1809,13 +1821,14 @@ async function getBatteryLevel() {
         if ('battery' in navigator || 'mozBattery' in navigator || 'webkitBattery' in navigator) {
             const battery = navigator.battery || navigator.mozBattery || navigator.webkitBattery;
             const level = Math.round(battery.level * 100);
-            console.log('🔋 Nivel de batería detectado (API legacy):', level + '%');
+            console.log('🔋 ✅ Nivel de batería REAL detectado (API legacy):', level + '%');
             updateBatteryUI(level);
             updateBatteryOnServer(level);
             return level;
         }
 
-        console.warn('⚠️ Battery API no disponible en este navegador');
+        console.warn('⚠️ Battery API NO disponible en este navegador/dispositivo');
+        console.warn('   Esto es normal en iOS/Safari');
         return null;
     } catch (error) {
         console.error('❌ Error al obtener nivel de batería:', error);
@@ -1823,81 +1836,242 @@ async function getBatteryLevel() {
     }
 }
 
-function updateBatteryUI(level) {
-    // Actualizar el indicador visual de batería
-    const batteryElements = document.querySelectorAll('[data-battery-level]');
-    batteryElements.forEach(el => {
-        el.textContent = level + '%';
-    });
+// ============================================================================
+// SISTEMA DE MONITOREO DE BATERÍA - REFACTORIZADO
+// ============================================================================
 
-    // Actualizar el ícono de batería según el nivel
-    const batteryIcon = document.getElementById('battery-icon');
-    if (batteryIcon) {
-        if (level > 80) {
-            batteryIcon.className = 'fas fa-battery-full text-green-600';
-        } else if (level > 60) {
-            batteryIcon.className = 'fas fa-battery-three-quarters text-green-600';
-        } else if (level > 40) {
-            batteryIcon.className = 'fas fa-battery-half text-yellow-600';
-        } else if (level > 20) {
-            batteryIcon.className = 'fas fa-battery-quarter text-orange-600';
-        } else {
-            batteryIcon.className = 'fas fa-battery-empty text-red-600 animate-pulse';
+const BatteryMonitor = {
+    battery: null,
+    lastReportedLevel: null,
+    updateInterval: null,
+    isMonitoring: false,
+
+    // Actualizar UI de batería
+    updateUI(level) {
+        if (level === null || level === undefined) {
+            console.warn('⚠️ updateUI: nivel de batería inválido', level);
+            return;
         }
+
+        // Asegurar que level sea un número válido
+        level = Math.max(0, Math.min(100, Math.round(level)));
+
+        console.log('🔋 Actualizando UI de batería REAL:', level + '%');
+
+        // Actualizar texto del porcentaje
+        const batteryElements = document.querySelectorAll('[data-battery-level]');
+        if (batteryElements.length === 0) {
+            console.warn('⚠️ No se encontraron elementos [data-battery-level]');
+        }
+
+        batteryElements.forEach(el => {
+            el.textContent = `${level}%`;
+            // Quitar el estilo gris de "cargando"
+            el.classList.remove('text-gray-400');
+            console.log('✅ Elemento actualizado con batería REAL:', level + '%');
+        });
+
+        // Actualizar ícono de batería
+        const batteryIcon = document.getElementById('battery-icon');
+        if (batteryIcon) {
+            const { icon, color } = this.getBatteryIconClass(level);
+            batteryIcon.className = `${icon} ${color}`;
+            console.log('✅ Ícono actualizado con color real:', icon, color);
+        } else {
+            console.warn('⚠️ No se encontró elemento battery-icon');
+        }
+    },
+
+    // Determinar clase de ícono según nivel
+    getBatteryIconClass(level) {
+        if (level > 80) return { icon: 'fas fa-battery-full', color: 'text-green-600' };
+        if (level > 60) return { icon: 'fas fa-battery-three-quarters', color: 'text-green-600' };
+        if (level > 40) return { icon: 'fas fa-battery-half', color: 'text-yellow-600' };
+        if (level > 20) return { icon: 'fas fa-battery-quarter', color: 'text-orange-600' };
+        return { icon: 'fas fa-battery-empty', color: 'text-red-600 animate-pulse' };
+    },
+
+    // Enviar nivel al servidor solo si cambió
+    async sendToServer(level) {
+        // Solo enviar si el nivel cambió al menos 1%
+        if (this.lastReportedLevel !== null && Math.abs(level - this.lastReportedLevel) < 1) {
+            return;
+        }
+
+        try {
+            const response = await fetch('{% url "actualizar_bateria" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.RappiSafe.csrfToken
+                },
+                body: JSON.stringify({ bateria: level })
+            });
+
+            if (response.ok) {
+                this.lastReportedLevel = level;
+            }
+        } catch (error) {
+            console.warn('Error al actualizar batería en servidor');
+        }
+    },
+
+    // Actualizar batería (UI + servidor)
+    update(level) {
+        this.updateUI(level);
+        this.sendToServer(level);
+    },
+
+    // Obtener nivel actual de batería
+    async getCurrentLevel() {
+        if (!this.battery) return null;
+
+        try {
+            const level = Math.round(this.battery.level * 100);
+            return level;
+        } catch (error) {
+            console.error('Error al leer nivel de batería:', error);
+            return null;
+        }
+    },
+
+    // Configurar listeners de eventos
+    setupListeners() {
+        if (!this.battery) return;
+
+        // Cambio de nivel
+        this.battery.addEventListener('levelchange', async () => {
+            const level = await this.getCurrentLevel();
+            if (level !== null) {
+                console.log('🔋 Batería cambió:', level + '%');
+                this.update(level);
+            }
+        });
+
+        // Cambio de estado de carga
+        this.battery.addEventListener('chargingchange', async () => {
+            const level = await this.getCurrentLevel();
+            if (level !== null) {
+                console.log('🔌 Estado de carga cambió');
+                this.update(level);
+            }
+        });
+
+        // Tiempo de carga cambió
+        this.battery.addEventListener('chargingtimechange', async () => {
+            const level = await this.getCurrentLevel();
+            if (level !== null) {
+                this.update(level);
+            }
+        });
+
+        // Tiempo de descarga cambió
+        this.battery.addEventListener('dischargingtimechange', async () => {
+            const level = await this.getCurrentLevel();
+            if (level !== null) {
+                this.update(level);
+            }
+        });
+    },
+
+    // Polling manual cada 10 segundos (más frecuente)
+    startPolling() {
+        // Limpiar intervalo anterior si existe
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+
+        // Actualizar cada 10 segundos
+        this.updateInterval = setInterval(async () => {
+            const level = await this.getCurrentLevel();
+            if (level !== null) {
+                this.update(level);
+            }
+        }, 10000); // 10 segundos
+    },
+
+    // Inicializar monitoreo
+    async init() {
+        if (this.isMonitoring) {
+            console.log('⚠️ Monitoreo de batería ya está activo');
+            return;
+        }
+
+        console.log('🔋 Iniciando monitoreo de batería REAL del dispositivo...');
+        console.log('📱 NO se usarán valores almacenados - solo batería real');
+
+        try {
+            // Intentar obtener API de batería
+            if ('getBattery' in navigator) {
+                this.battery = await navigator.getBattery();
+                console.log('✅ API de batería disponible');
+
+                // Actualización inicial - VALOR REAL
+                const initialLevel = await this.getCurrentLevel();
+                if (initialLevel !== null) {
+                    console.log('🔋 ✅ Nivel REAL obtenido del dispositivo:', initialLevel + '%');
+                    this.update(initialLevel);
+                } else {
+                    console.warn('⚠️ No se pudo leer nivel de batería');
+                    this.updateUI(100);
+                }
+
+                // Configurar listeners
+                this.setupListeners();
+
+                // Iniciar polling manual cada 10 segundos
+                this.startPolling();
+
+                this.isMonitoring = true;
+                console.log('✅ Monitoreo de batería activo - Actualizando cada 10s');
+            } else {
+                // Intentar API legacy
+                console.warn('⚠️ getBattery() no disponible, intentando API legacy...');
+                if ('battery' in navigator || 'mozBattery' in navigator || 'webkitBattery' in navigator) {
+                    this.battery = navigator.battery || navigator.mozBattery || navigator.webkitBattery;
+                    const level = Math.round(this.battery.level * 100);
+                    console.log('✅ API legacy funcionando - Batería:', level + '%');
+                    this.update(level);
+                    this.setupListeners();
+                    this.startPolling();
+                    this.isMonitoring = true;
+                } else {
+                    // Sin API de batería (iOS, navegadores antiguos)
+                    console.warn('❌ Battery API NO disponible en este navegador');
+                    console.warn('   Esto es normal en iOS/Safari');
+                    console.warn('   Mostrando valor por defecto: 100%');
+                    this.updateUI(100);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error al inicializar batería:', error);
+            console.warn('Mostrando valor por defecto: 100%');
+            this.updateUI(100);
+        }
+    },
+
+    // Detener monitoreo
+    stop() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+        this.isMonitoring = false;
+        console.log('🔋 Monitoreo de batería detenido');
     }
+};
+
+// Función legacy para compatibilidad
+function updateBatteryUI(level) {
+    BatteryMonitor.updateUI(level);
 }
 
 function updateBatteryOnServer(level) {
-    // Enviar nivel de batería al servidor
-    fetch('{% url "actualizar_bateria" %}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': window.RappiSafe.csrfToken
-        },
-        body: JSON.stringify({ bateria: level })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            console.log('✅ Nivel de batería actualizado en servidor:', level + '%');
-        }
-    })
-    .catch(error => {
-        console.warn('⚠️ Error al actualizar batería en servidor:', error);
-    });
+    BatteryMonitor.sendToServer(level);
 }
 
-// Monitorear cambios en el nivel de batería
 async function initBatteryMonitoring() {
-    try {
-        if ('getBattery' in navigator) {
-            const battery = await navigator.getBattery();
-
-            // Actualizar inicialmente
-            const initialLevel = Math.round(battery.level * 100);
-            console.log('🔋 Nivel de batería inicial:', initialLevel + '%');
-            updateBatteryUI(initialLevel);
-            updateBatteryOnServer(initialLevel);
-
-            // Escuchar cambios en el nivel de batería
-            battery.addEventListener('levelchange', function() {
-                const newLevel = Math.round(battery.level * 100);
-                console.log('🔋 Batería cambió a:', newLevel + '%');
-                updateBatteryUI(newLevel);
-                updateBatteryOnServer(newLevel);
-            });
-
-            // Actualizar cada 5 minutos por si acaso
-            setInterval(() => {
-                const level = Math.round(battery.level * 100);
-                updateBatteryUI(level);
-                updateBatteryOnServer(level);
-            }, 300000); // 5 minutos
-        }
-    } catch (error) {
-        console.error('❌ Error al inicializar monitoreo de batería:', error);
-    }
+    await BatteryMonitor.init();
 }
 
 // Función global para iniciar detección de agitación

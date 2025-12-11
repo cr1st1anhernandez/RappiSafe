@@ -224,7 +224,7 @@ class EstadisticaRiesgo(models.Model):
     """
     nombre_zona = models.CharField(max_length=200, verbose_name='Nombre de la zona')
     coordenadas_zona = models.JSONField(verbose_name='Coordenadas de la zona (GeoJSON)')
-    puntuacion_riesgo = models.FloatField(verbose_name='Puntuación de riesgo (0-100)')
+    puntuacion_riesgo = models.FloatField(verbose_name='Puntuación de riesgo (1-10)')
     total_alertas = models.IntegerField(default=0, verbose_name='Total de alertas')
     alertas_panico = models.IntegerField(default=0, verbose_name='Alertas de pánico')
     alertas_accidente = models.IntegerField(default=0, verbose_name='Alertas de accidente')

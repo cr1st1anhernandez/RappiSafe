@@ -1,0 +1,201 @@
+{% extends 'rappiSafe/operador/base_operador.html' %}
+{% load static %}
+
+{% block title %}Historial de Alertas - Rappi Safe{% endblock %}
+
+{% block operador_content %}
+<div class="p-6">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="{% url 'operador_dashboard' %}" class="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                    <i class="fas fa-arrow-left text-gray-600"></i>
+                </a>
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900 mb-1 flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                            <i class="fas fa-history text-blue-600 text-xl"></i>
+                        </div>
+                        Historial de Alertas
+                    </h1>
+                    <p class="text-gray-500">Registro completo de alertas del sistema</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-6">
+        <h3 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="fas fa-filter text-rappi-red"></i>
+            Filtros
+        </h3>
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Estado -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+                <select name="estado" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-rappi-red focus:border-transparent">
+                    <option value="">Todos</option>
+                    <option value="pendiente" {% if request.GET.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                    <option value="en_atencion" {% if request.GET.estado == 'en_atencion' %}selected{% endif %}>En Atención</option>
+                    <option value="cerrado" {% if request.GET.estado == 'cerrado' %}selected{% endif %}>Cerrado</option>
+                    <option value="cancelado" {% if request.GET.estado == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                </select>
+            </div>
+
+            <!-- Tipo -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+                <select name="tipo" class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-rappi-red focus:border-transparent">
+                    <option value="">Todos</option>
+                    <option value="panico" {% if request.GET.tipo == 'panico' %}selected{% endif %}>Pánico</option>
+                    <option value="accidente" {% if request.GET.tipo == 'accidente' %}selected{% endif %}>Accidente</option>
+                </select>
+            </div>
+
+            <!-- Búsqueda -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Buscar Repartidor</label>
+                <input type="text" name="buscar" value="{{ request.GET.buscar }}"
+                       placeholder="Nombre o teléfono..."
+                       class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-rappi-red focus:border-transparent">
+            </div>
+
+            <!-- Botón filtrar -->
+            <div class="flex items-end">
+                <button type="submit" class="btn-primary w-full">
+                    <i class="fas fa-search mr-2"></i>Buscar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Resumen rápido -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="card bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200">
+            <p class="text-sm text-gray-600 mb-1">Total</p>
+            <p class="text-2xl font-bold text-gray-900">{{ total_alertas }}</p>
+        </div>
+        <div class="card bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200">
+            <p class="text-sm text-yellow-700 mb-1">Pendientes</p>
+            <p class="text-2xl font-bold text-yellow-900">{{ alertas_pendientes }}</p>
+        </div>
+        <div class="card bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200">
+            <p class="text-sm text-orange-700 mb-1">En Atención</p>
+            <p class="text-2xl font-bold text-orange-900">{{ alertas_en_atencion }}</p>
+        </div>
+        <div class="card bg-gradient-to-br from-green-50 to-green-100 border border-green-200">
+            <p class="text-sm text-green-700 mb-1">Cerradas</p>
+            <p class="text-2xl font-bold text-green-900">{{ alertas_cerradas }}</p>
+        </div>
+    </div>
+
+    <!-- Lista de alertas -->
+    <div class="card mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-900">Alertas</h3>
+            <p class="text-sm text-gray-600">{{ page_obj.paginator.count }} alertas encontradas</p>
+        </div>
+
+        <div class="space-y-3">
+            {% for alerta in page_obj %}
+            <div class="p-4 rounded-xl border border-gray-200 hover:border-rappi-red hover:shadow-md transition-all cursor-pointer"
+                 onclick="window.location.href='{% url 'ver_alerta' alerta.id %}'">
+                <div class="flex items-start justify-between">
+                    <!-- Info principal -->
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="badge {% if alerta.tipo == 'panico' %}badge-danger{% else %}badge-warning{% endif %}">
+                                {% if alerta.tipo == 'panico' %}
+                                <i class="fas fa-hand-paper mr-1"></i>Pánico
+                                {% else %}
+                                <i class="fas fa-car-crash mr-1"></i>Accidente
+                                {% endif %}
+                            </span>
+                            <span class="badge
+                                {% if alerta.estado == 'pendiente' %}badge-danger
+                                {% elif alerta.estado == 'en_atencion' %}badge-warning
+                                {% elif alerta.estado == 'cerrado' %}badge-success
+                                {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                {{ alerta.get_estado_display }}
+                            </span>
+                            <span class="text-xs text-gray-500">
+                                <i class="fas fa-clock mr-1"></i>{{ alerta.creado_en|date:"d/m/Y H:i" }}
+                            </span>
+                        </div>
+
+                        <p class="font-bold text-gray-900">{{ alerta.repartidor.get_full_name }}</p>
+                        <p class="text-sm text-gray-600">
+                            <i class="fas fa-phone mr-1"></i>{{ alerta.repartidor.telefono }}
+                        </p>
+
+                        {% if alerta.atendido_por %}
+                        <p class="text-xs text-gray-500 mt-2">
+                            <i class="fas fa-user-shield mr-1"></i>Atendido por: {{ alerta.atendido_por.get_full_name }}
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Info adicional -->
+                    <div class="flex flex-col items-end gap-2">
+                        {% if alerta.nivel_bateria %}
+                        <div class="text-right">
+                            <i class="fas fa-battery-{% if alerta.nivel_bateria > 75 %}full text-green-600{% elif alerta.nivel_bateria > 25 %}half text-yellow-600{% else %}quarter text-red-600{% endif %}"></i>
+                            <span class="text-xs text-gray-600 ml-1">{{ alerta.nivel_bateria }}%</span>
+                        </div>
+                        {% endif %}
+
+                        {% if alerta.latitud and alerta.longitud %}
+                        <a href="https://www.google.com/maps?q={{ alerta.latitud }},{{ alerta.longitud }}"
+                           target="_blank"
+                           onclick="event.stopPropagation()"
+                           class="text-xs text-rappi-red hover:text-red-700">
+                            <i class="fas fa-map-marker-alt mr-1"></i>Ver ubicación
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-12">
+                <i class="fas fa-inbox text-6xl text-gray-300 mb-4"></i>
+                <p class="text-gray-600 font-medium">No se encontraron alertas</p>
+                <p class="text-sm text-gray-500 mt-2">Intenta ajustar los filtros de búsqueda</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Paginación -->
+        {% if page_obj.has_other_pages %}
+        <div class="flex items-center justify-center gap-2 mt-6 pt-6 border-t border-gray-200">
+            {% if page_obj.has_previous %}
+            <a href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+               class="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-sm">
+                <i class="fas fa-angle-double-left"></i>
+            </a>
+            <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+               class="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-sm">
+                <i class="fas fa-angle-left"></i>
+            </a>
+            {% endif %}
+
+            <span class="px-4 py-2 text-sm text-gray-700">
+                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            </span>
+
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+               class="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-sm">
+                <i class="fas fa-angle-right"></i>
+            </a>
+            <a href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}"
+               class="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-sm">
+                <i class="fas fa-angle-double-right"></i>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

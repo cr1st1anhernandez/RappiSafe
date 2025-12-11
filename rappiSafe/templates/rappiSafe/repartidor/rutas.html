@@ -82,7 +82,7 @@
                                     <p class="text-xs text-gray-500">Menor tiempo</p>
                                 </div>
                             </div>
-                            <span class="badge badge-danger" id="riesgo-rapida">-</span>
+                            <span class="badge" id="riesgo-rapida">-</span>
                         </div>
                         <div class="grid grid-cols-2 gap-3 text-sm">
                             <div class="flex items-center gap-2 text-gray-600">
@@ -109,7 +109,7 @@
                                     <p class="text-xs text-gray-500">Recomendada</p>
                                 </div>
                             </div>
-                            <span class="badge badge-success" id="riesgo-segura1">-</span>
+                            <span class="badge" id="riesgo-segura1">-</span>
                         </div>
                         <div class="grid grid-cols-2 gap-3 text-sm">
                             <div class="flex items-center gap-2 text-gray-600">
@@ -136,7 +136,7 @@
                                     <p class="text-xs text-gray-500">Más segura</p>
                                 </div>
                             </div>
-                            <span class="badge badge-success" id="riesgo-segura2">-</span>
+                            <span class="badge" id="riesgo-segura2">-</span>
                         </div>
                         <div class="grid grid-cols-2 gap-3 text-sm">
                             <div class="flex items-center gap-2 text-gray-600">
@@ -345,20 +345,36 @@
     function mostrarRutas(rutas) {
         document.getElementById('rutas-container').classList.remove('hidden');
 
+        // Función auxiliar para actualizar badge de riesgo
+        function actualizarBadgeRiesgo(elementId, riesgo) {
+            const badge = document.getElementById(elementId);
+            badge.textContent = `Riesgo: ${riesgo}/10`;
+
+            // Actualizar color según nivel de riesgo
+            badge.classList.remove('badge-success', 'badge-warning', 'badge-danger');
+            if (riesgo < 5) {
+                badge.classList.add('badge-success');
+            } else if (riesgo < 7) {
+                badge.classList.add('badge-warning');
+            } else {
+                badge.classList.add('badge-danger');
+            }
+        }
+
         // Ruta rápida
         document.getElementById('distancia-rapida').textContent = rutas.rapida.distancia;
         document.getElementById('tiempo-rapida').textContent = rutas.rapida.duracion;
-        document.getElementById('riesgo-rapida').textContent = `Riesgo: ${rutas.rapida.puntuacion_riesgo}`;
+        actualizarBadgeRiesgo('riesgo-rapida', rutas.rapida.puntuacion_riesgo);
 
         // Ruta segura 1
         document.getElementById('distancia-segura1').textContent = rutas.seguras[0].distancia;
         document.getElementById('tiempo-segura1').textContent = rutas.seguras[0].duracion;
-        document.getElementById('riesgo-segura1').textContent = `Riesgo: ${rutas.seguras[0].puntuacion_riesgo}`;
+        actualizarBadgeRiesgo('riesgo-segura1', rutas.seguras[0].puntuacion_riesgo);
 
         // Ruta segura 2
         document.getElementById('distancia-segura2').textContent = rutas.seguras[1].distancia;
         document.getElementById('tiempo-segura2').textContent = rutas.seguras[1].duracion;
-        document.getElementById('riesgo-segura2').textContent = `Riesgo: ${rutas.seguras[1].puntuacion_riesgo}`;
+        actualizarBadgeRiesgo('riesgo-segura2', rutas.seguras[1].puntuacion_riesgo);
 
         // Mostrar ruta rápida por defecto
         seleccionarRuta('rapida');

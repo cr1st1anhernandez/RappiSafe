@@ -40,6 +40,7 @@ urlpatterns = [
     path('operador/solicitud-psicologica/<int:solicitud_id>/atender/', views.atender_solicitud_psicologica, name='atender_solicitud_psicologica'),
     path('operador/reportes/', views.reportes_operador, name='reportes_operador'),
     path('operador/reportes/pdf/', views.generar_reporte_pdf, name='generar_reporte_pdf'),
+    path('operador/historial-alertas/', views.historial_alertas_operador, name='historial_alertas_operador'),
     path('operador/alerta/<uuid:alerta_id>/notificar-contactos/', views.notificar_contactos_operador, name='notificar_contactos_operador'),
     path('operador/repartidores/', views.lista_repartidores, name='lista_repartidores'),
 

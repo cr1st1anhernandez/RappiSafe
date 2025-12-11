@@ -972,6 +972,59 @@ def reportes_operador(request):
 
 @login_required
 @user_passes_test(es_operador)
+def historial_alertas_operador(request):
+    """Vista de historial completo de alertas para operadores"""
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+
+    # Obtener todas las alertas
+    alertas = Alerta.objects.all().select_related('repartidor', 'atendido_por').order_by('-creado_en')
+
+    # Aplicar filtros
+    estado = request.GET.get('estado', '')
+    tipo = request.GET.get('tipo', '')
+    buscar = request.GET.get('buscar', '')
+
+    if estado:
+        alertas = alertas.filter(estado=estado)
+
+    if tipo:
+        alertas = alertas.filter(tipo=tipo)
+
+    if buscar:
+        alertas = alertas.filter(
+            Q(repartidor__first_name__icontains=buscar) |
+            Q(repartidor__last_name__icontains=buscar) |
+            Q(repartidor__telefono__icontains=buscar)
+        )
+
+    # Estadísticas para el resumen
+    total_alertas = alertas.count()
+    alertas_pendientes = alertas.filter(estado='pendiente').count()
+    alertas_en_atencion = alertas.filter(estado='en_atencion').count()
+    alertas_cerradas = alertas.filter(estado='cerrado').count()
+
+    # Paginación
+    paginator = Paginator(alertas, 20)  # 20 alertas por página
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    # Total de solicitudes pendientes para el badge de navegación
+    total_solicitudes_pendientes = SolicitudAyudaPsicologica.objects.filter(estado='pendiente').count()
+
+    context = {
+        'page_obj': page_obj,
+        'total_alertas': total_alertas,
+        'alertas_pendientes': alertas_pendientes,
+        'alertas_en_atencion': alertas_en_atencion,
+        'alertas_cerradas': alertas_cerradas,
+        'total_solicitudes_pendientes': total_solicitudes_pendientes,
+    }
+    return render(request, 'rappiSafe/operador/historial_alertas.html', context)
+
+
+@login_required
+@user_passes_test(es_operador)
 @require_POST
 def notificar_contactos_operador(request, alerta_id):
     """Endpoint para notificar contactos de confianza desde el operador"""

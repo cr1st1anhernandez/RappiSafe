@@ -44,6 +44,156 @@
     .admin-content {
         padding-bottom: 80px;
     }
+
+    /* =========================================================================
+       CALENDARIOS MEJORADOS - RAPPI SAFE
+       ========================================================================= */
+
+    /* Base del input de fecha - Diseño moderno */
+    input[type="date"] {
+        position: relative;
+        cursor: pointer;
+        color-scheme: light;
+        font-feature-settings: 'tnum';
+        letter-spacing: 0.02em;
+        font-size: 15px;
+        font-weight: 500;
+        padding: 14px 16px;
+        padding-right: 48px;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        background: linear-gradient(to bottom, #ffffff, #f9fafb);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        color: #374151;
+    }
+
+    /* Indicador de calendario - Webkit (Chrome, Edge, Safari) */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        position: absolute;
+        right: 12px;
+        width: 24px;
+        height: 24px;
+        /* Color rojo Rappi Safe con mejor contraste */
+        filter: brightness(0) saturate(100%) invert(24%) sepia(72%) saturate(3547%) hue-rotate(346deg) brightness(95%) contrast(92%);
+        padding: 8px;
+        border-radius: 8px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        opacity: 0.85;
+        background-color: rgba(220, 38, 38, 0.05);
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+        background-color: rgba(220, 38, 38, 0.12);
+        transform: scale(1.1) rotate(5deg);
+        opacity: 1;
+        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator:active {
+        transform: scale(1) rotate(0deg);
+        transition: all 0.1s ease;
+    }
+
+    /* Indicador de calendario - Firefox */
+    input[type="date"]::-moz-calendar-picker-indicator {
+        cursor: pointer;
+        filter: brightness(0) saturate(100%) invert(24%) sepia(72%) saturate(3547%) hue-rotate(346deg) brightness(95%) contrast(92%);
+        padding: 8px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        opacity: 0.85;
+        background-color: rgba(220, 38, 38, 0.05);
+    }
+
+    input[type="date"]::-moz-calendar-picker-indicator:hover {
+        background-color: rgba(220, 38, 38, 0.12);
+        transform: scale(1.1);
+        opacity: 1;
+    }
+
+    /* Estados del input de fecha */
+    input[type="date"]:hover {
+        border-color: #fca5a5;
+        background: #ffffff;
+        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08);
+        transform: translateY(-1px);
+    }
+
+    input[type="date"]:focus {
+        outline: none;
+        border-color: #dc2626;
+        background: #ffffff;
+        box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12), 0 4px 12px rgba(220, 38, 38, 0.15);
+        transform: translateY(-1px);
+    }
+
+    /* Fecha seleccionada - indicador visual */
+    input[type="date"]:valid {
+        border-color: #10b981;
+        background: linear-gradient(to bottom, #ffffff, #f0fdf4);
+    }
+
+    input[type="date"]:valid:hover {
+        border-color: #059669;
+    }
+
+    /* Botón de limpiar en Chrome */
+    input[type="date"]::-webkit-clear-button {
+        display: none;
+    }
+
+    /* Spinner interno oculto */
+    input[type="date"]::-webkit-inner-spin-button,
+    input[type="date"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    /* Contenedor de fechas mejorado */
+    .date-filter-container {
+        position: relative;
+    }
+
+    .date-filter-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.02) 0%, rgba(220, 38, 38, 0.05) 100%);
+        border-radius: 16px;
+        pointer-events: none;
+        z-index: -1;
+    }
+
+    /* Labels mejorados */
+    .date-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 10px;
+    }
+
+    .date-label i {
+        color: #dc2626;
+        font-size: 16px;
+    }
+
+    /* Animación para el botón de consultar */
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(220, 38, 38, 0.25);
+    }
+
+    .btn-primary:active {
+        transform: translateY(0);
+        box-shadow: 0 4px 8px rgba(220, 38, 38, 0.2);
+    }
 </style>
 {% endblock %}
 
@@ -56,22 +206,61 @@
         </a>
     </div>
 
-    <!-- Filtros de fecha -->
-    <form method="GET" class="card mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <!-- Filtros de fecha mejorados -->
+    <form method="GET" class="card mb-6 date-filter-container" style="border: 2px solid #fee2e2; background: linear-gradient(to bottom, #ffffff, #fef2f2);">
+        <div class="mb-4">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-calendar-alt text-red-600"></i>
+                Filtrar por Rango de Fechas
+            </h3>
+            <p class="text-sm text-gray-600 mt-1">Selecciona el período de tiempo para generar las estadísticas</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Fecha Inicio</label>
-                <input type="date" name="fecha_inicio" value="{{ fecha_inicio|date:'Y-m-d' }}" class="input">
+                <label class="date-label">
+                    <i class="fas fa-calendar-day"></i>
+                    Fecha Inicio
+                </label>
+                <input type="date" name="fecha_inicio" value="{{ fecha_inicio|date:'Y-m-d' }}"
+                       class="input w-full"
+                       max="{{ fecha_fin|date:'Y-m-d' }}"
+                       title="Selecciona la fecha de inicio del período">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Fecha Fin</label>
-                <input type="date" name="fecha_fin" value="{{ fecha_fin|date:'Y-m-d' }}" class="input">
+                <label class="date-label">
+                    <i class="fas fa-calendar-check"></i>
+                    Fecha Fin
+                </label>
+                <input type="date" name="fecha_fin" value="{{ fecha_fin|date:'Y-m-d' }}"
+                       class="input w-full"
+                       min="{{ fecha_inicio|date:'Y-m-d' }}"
+                       max="{% now 'Y-m-d' %}"
+                       title="Selecciona la fecha de fin del período">
             </div>
             <div class="flex items-end">
-                <button type="submit" class="btn-primary w-full">
-                    <i class="fas fa-search mr-2"></i>Consultar
+                <button type="submit" class="btn-primary w-full" style="padding: 14px 24px; font-size: 16px;">
+                    <i class="fas fa-search mr-2"></i>
+                    Consultar Estadísticas
                 </button>
             </div>
+        </div>
+        <div class="mt-4 flex gap-3">
+            <button type="button" onclick="setToday()" class="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1">
+                <i class="fas fa-calendar-day"></i>
+                Hoy
+            </button>
+            <button type="button" onclick="setLastWeek()" class="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1">
+                <i class="fas fa-calendar-week"></i>
+                Última semana
+            </button>
+            <button type="button" onclick="setLastMonth()" class="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1">
+                <i class="fas fa-calendar-alt"></i>
+                Último mes
+            </button>
+            <button type="button" onclick="clearDates()" class="text-sm text-gray-600 hover:text-gray-700 font-medium flex items-center gap-1">
+                <i class="fas fa-times-circle"></i>
+                Limpiar
+            </button>
         </div>
     </form>
 
@@ -305,6 +494,39 @@
 </div>
 
 <script>
+    // ========================================================================
+    // FUNCIONES DE FECHAS RÁPIDAS
+    // ========================================================================
+
+    function setToday() {
+        const today = new Date().toISOString().split('T')[0];
+        document.querySelector('input[name="fecha_inicio"]').value = today;
+        document.querySelector('input[name="fecha_fin"]').value = today;
+    }
+
+    function setLastWeek() {
+        const today = new Date();
+        const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        document.querySelector('input[name="fecha_inicio"]').value = lastWeek.toISOString().split('T')[0];
+        document.querySelector('input[name="fecha_fin"]').value = today.toISOString().split('T')[0];
+    }
+
+    function setLastMonth() {
+        const today = new Date();
+        const lastMonth = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        document.querySelector('input[name="fecha_inicio"]').value = lastMonth.toISOString().split('T')[0];
+        document.querySelector('input[name="fecha_fin"]').value = today.toISOString().split('T')[0];
+    }
+
+    function clearDates() {
+        document.querySelector('input[name="fecha_inicio"]').value = '';
+        document.querySelector('input[name="fecha_fin"]').value = '';
+    }
+
+    // ========================================================================
+    // GENERAR REPORTE PDF
+    // ========================================================================
+
     function generarReportePDF() {
         // Obtener las fechas del formulario
         const fechaInicio = document.querySelector('input[name="fecha_inicio"]')?.value;
@@ -349,6 +571,30 @@
                 alert('Error al generar el reporte PDF. Por favor, intenta nuevamente.');
             });
     }
+
+    // ========================================================================
+    // VALIDACIÓN DE FECHAS
+    // ========================================================================
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const fechaInicio = document.querySelector('input[name="fecha_inicio"]');
+        const fechaFin = document.querySelector('input[name="fecha_fin"]');
+
+        // Validar que fecha inicio no sea mayor que fecha fin
+        fechaInicio.addEventListener('change', function() {
+            if (fechaFin.value && fechaInicio.value > fechaFin.value) {
+                alert('La fecha de inicio no puede ser mayor que la fecha de fin');
+                fechaInicio.value = '';
+            }
+        });
+
+        fechaFin.addEventListener('change', function() {
+            if (fechaInicio.value && fechaFin.value < fechaInicio.value) {
+                alert('La fecha de fin no puede ser menor que la fecha de inicio');
+                fechaFin.value = '';
+            }
+        });
+    });
 </script>
 
 <!-- Bottom Navigation -->

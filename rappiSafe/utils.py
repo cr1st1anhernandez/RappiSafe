@@ -152,19 +152,122 @@ def obtener_ruta_osrm(origen_lat, origen_lon, destino_lat, destino_lon, profile=
 
 def calcular_puntuacion_riesgo(coordenadas, zonas_riesgo=None):
     """
-    Calcular puntuación de riesgo de una ruta basándose en zonas de riesgo
-    Si no hay zonas de riesgo, calcula un valor aleatorio simulado
+    Calcular puntuación de riesgo de una ruta basándose en zonas de riesgo reales
+    Retorna un valor de 1-10 donde 10 es el más peligroso
+
+    Args:
+        coordenadas: Lista de coordenadas [lat, lng] de la ruta
+        zonas_riesgo: QuerySet de EstadisticaRiesgo (opcional)
+
+    Returns:
+        float: Puntuación de riesgo de 1.0 a 10.0
     """
+    from math import radians, sin, cos, sqrt, atan2
+    from .models import EstadisticaRiesgo
+
+    # Si no se proporcionan zonas, obtenerlas de la base de datos
     if not zonas_riesgo:
-        # Simulación basada en la longitud de la ruta
+        zonas_riesgo = EstadisticaRiesgo.objects.all()
+
+    if not zonas_riesgo.exists():
+        # Si no hay datos de zonas de riesgo, ruta base de riesgo medio-bajo
         num_puntos = len(coordenadas)
-        # Rutas más largas tienden a ser más riesgosas
-        riesgo_base = min(30 + (num_puntos * 0.5), 70)
+        riesgo_base = min(1.0 + (num_puntos * 0.01), 4.0)
         return round(riesgo_base, 1)
 
-    # Lógica real: verificar intersección con zonas de riesgo
-    # Por ahora retornamos un valor simulado
-    return round(35.0 + (len(coordenadas) * 0.3), 1)
+    # Calcular riesgo real basado en proximidad a zonas peligrosas
+    # Sistema de zonas concéntricas:
+    # - 0-1 km: Riesgo completo (factor 1.0)
+    # - 1-2 km: Riesgo medio (factor 0.7)
+    # - 2-3 km: Riesgo bajo (factor 0.4)
+    # - >3 km: Sin riesgo (factor 0.0)
+
+    puntuaciones = []
+    zona_mas_cercana = None
+    distancia_minima = float('inf')
+
+    for coord in coordenadas:
+        lat_ruta, lng_ruta = coord[0], coord[1]
+
+        # Buscar zonas cercanas a este punto de la ruta
+        for zona in zonas_riesgo:
+            try:
+                coords_zona = zona.coordenadas_zona
+                if isinstance(coords_zona, dict) and 'center' in coords_zona:
+                    lat_zona = float(coords_zona['center']['lat'])
+                    lng_zona = float(coords_zona['center']['lng'])
+
+                    # Calcular distancia usando fórmula de Haversine
+                    R = 6371  # Radio de la Tierra en km
+
+                    lat1 = radians(lat_ruta)
+                    lon1 = radians(lng_ruta)
+                    lat2 = radians(lat_zona)
+                    lon2 = radians(lng_zona)
+
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+
+                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                    c = 2 * atan2(sqrt(a), sqrt(1-a))
+                    distancia = R * c
+
+                    # Guardar la zona más cercana
+                    if distancia < distancia_minima:
+                        distancia_minima = distancia
+                        zona_mas_cercana = zona
+
+                    # Sistema de zonas concéntricas (3 km de radio total)
+                    if distancia <= 3.0:
+                        # Calcular factor de distancia según zona concéntrica
+                        if distancia <= 1.0:
+                            # Zona de alto riesgo (0-1 km)
+                            factor_distancia = 1.0 - (distancia * 0.3)  # 1.0 a 0.7
+                        elif distancia <= 2.0:
+                            # Zona de riesgo medio (1-2 km)
+                            factor_distancia = 0.7 - ((distancia - 1.0) * 0.3)  # 0.7 a 0.4
+                        else:
+                            # Zona de riesgo bajo (2-3 km)
+                            factor_distancia = 0.4 - ((distancia - 2.0) * 0.4)  # 0.4 a 0.0
+
+                        puntuacion_zona = zona.puntuacion_riesgo * max(0.0, factor_distancia)
+                        if puntuacion_zona > 0:
+                            puntuaciones.append(puntuacion_zona)
+            except (KeyError, ValueError, TypeError):
+                continue
+
+    # Si la ruta no pasa cerca de ninguna zona registrada
+    if not puntuaciones:
+        # Si hay una zona cercana pero fuera del radio, dar riesgo mínimo basado en qué tan cerca está
+        if zona_mas_cercana and distancia_minima < 10.0:
+            # Entre 3-10 km: dar un riesgo muy bajo proporcional a la zona
+            factor_lejania = max(0, 1.0 - (distancia_minima / 10.0))
+            riesgo_base = zona_mas_cercana.puntuacion_riesgo * factor_lejania * 0.3
+            return round(max(1.5, min(4.0, riesgo_base)), 1)
+
+        # Ruta muy lejos de zonas conocidas
+        num_puntos = len(coordenadas)
+        return round(min(2.0 + (num_puntos * 0.005), 3.5), 1)
+
+    # Calcular puntuación final con peso para la zona más peligrosa
+    puntuacion_promedio = sum(puntuaciones) / len(puntuaciones)
+    puntuacion_maxima = max(puntuaciones)
+
+    # Si la zona más peligrosa es muy peligrosa (>7), darle más peso
+    if puntuacion_maxima >= 7.0:
+        # 70% zona más peligrosa, 30% promedio
+        puntuacion_final = (puntuacion_maxima * 0.7) + (puntuacion_promedio * 0.3)
+    elif puntuacion_maxima >= 5.0:
+        # 60% zona más peligrosa, 40% promedio
+        puntuacion_final = (puntuacion_maxima * 0.6) + (puntuacion_promedio * 0.4)
+    else:
+        # 50% zona más peligrosa, 50% promedio
+        puntuacion_final = (puntuacion_maxima * 0.5) + (puntuacion_promedio * 0.5)
+
+    # Asegurar que esté en el rango 1-10
+    puntuacion_final = max(1.0, min(10.0, puntuacion_final))
+
+    return round(puntuacion_final, 1)
 
 
 def obtener_rutas_alternativas(origen_lat, origen_lon, destino_lat, destino_lon):
