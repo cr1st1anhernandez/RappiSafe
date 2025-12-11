@@ -382,8 +382,6 @@ def agregar_contacto(request):
             nombre=data.get('nombre'),
             telefono=data.get('telefono'),
             relacion=data.get('relacion', ''),
-            telegram_id=data.get('telegram_id', ''),
-            email=data.get('email', ''),
             validado=True  # Marcar como validado automáticamente
         )
 
