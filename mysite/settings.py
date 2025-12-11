@@ -18,7 +18,8 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Cargar variables de entorno desde archivo .env
-load_dotenv(BASE_DIR / '.env')
+# override=True hace que el .env tenga prioridad sobre variables de entorno del sistema
+load_dotenv(BASE_DIR / '.env', override=True)
 
 
 # Quick-start development settings - unsuitable for production
@@ -32,15 +33,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']  # Permitir todas las IPs (para desarrollo local y testing en red)
 
-# Configuración de Email (opcional)
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-EMAIL_TIMEOUT = 10  # Timeout de 10 segundos
+# Configuración de notificaciones
+# Solo se usa SMS via Mocean API (configurado en .env: MOCEAN_API_TOKEN)
 
 
 # Application definition
